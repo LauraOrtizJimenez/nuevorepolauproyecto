@@ -258,8 +258,10 @@ class GameController extends ChangeNotifier {
         _signalR.on('ReceiveProfesorQuestion', (args) {
           try {
             if (args != null && args.isNotEmpty && args[0] is Map) {
-              currentQuestion = ProfesorQuestionDto.fromJson(Map<String, dynamic>.from(args[0] as Map));
-              developer.log('ReceiveProfesorQuestion received id=${currentQuestion?.questionId}', name: 'GameController');
+              final raw = Map<String, dynamic>.from(args[0] as Map);
+              developer.log('ReceiveProfesorQuestion raw payload: $raw', name: 'GameController');
+              currentQuestion = ProfesorQuestionDto.fromJson(raw);
+              developer.log('ReceiveProfesorQuestion parsed id=${currentQuestion?.questionId} question=${currentQuestion?.question} options=${currentQuestion?.options}', name: 'GameController');
               notifyListeners();
             }
           } catch (e) { developer.log('ReceiveProfesorQuestion handler error: ${e.toString()}', name: 'GameController'); }
@@ -294,7 +296,16 @@ class GameController extends ChangeNotifier {
           waitingForMove = false;
           notifyListeners();
           await _refreshPlayersFromServer();
-          try { if (lastMoveResult != null) await _maybeFetchProfesorForPosition(lastMoveResult!.newPosition); } catch (_) {}
+          try {
+            if (lastMoveResult != null) {
+              final pos = lastMoveResult!.newPosition;
+              if (game != null && game!.ladders.any((l) => l.bottomPosition == pos)) {
+                await _maybeFetchProfesorForPosition(pos);
+              } else {
+                developer.log('Skipping profesor fetch after MoveCompleted for pos=$pos (no ladder present)', name: 'GameController');
+              }
+            }
+          } catch (_) {}
         });
 
         _signalR.on('GameFinished', (args) {
@@ -412,7 +423,16 @@ class GameController extends ChangeNotifier {
               } catch (_) { lastMovePlayerId = null; }
               try { developer.log('REST roll result: dice=${res.dice} newPosition=${res.newPosition}', name: 'GameController'); } catch (_) {}
               await loadGame(game!.id);
-              try { if (lastMoveResult != null) await _maybeFetchProfesorForPosition(lastMoveResult!.newPosition); } catch (_) {}
+              try {
+                if (lastMoveResult != null) {
+                  final pos = lastMoveResult!.newPosition;
+                  if (game != null && game!.ladders.any((l) => l.bottomPosition == pos)) {
+                    await _maybeFetchProfesorForPosition(pos);
+                  } else {
+                    developer.log('Skipping profesor fetch after REST roll (simulate disabled) for pos=$pos (no ladder present)', name: 'GameController');
+                  }
+                }
+              } catch (_) {}
             }
           } catch (e2) {
             // fallback to REST if real-time failed
@@ -432,7 +452,16 @@ class GameController extends ChangeNotifier {
             } catch (_) { lastMovePlayerId = null; }
             try { developer.log('REST roll result (retry): dice=${res.dice} newPosition=${res.newPosition}', name: 'GameController'); } catch (_) {}
             await loadGame(game!.id);
-            try { if (lastMoveResult != null) await _maybeFetchProfesorForPosition(lastMoveResult!.newPosition); } catch (_) {}
+            try {
+              if (lastMoveResult != null) {
+                final pos = lastMoveResult!.newPosition;
+                if (game != null && game!.ladders.any((l) => l.bottomPosition == pos)) {
+                  await _maybeFetchProfesorForPosition(pos);
+                } else {
+                  developer.log('Skipping profesor fetch after REST retry for pos=$pos (no ladder present)', name: 'GameController');
+                }
+              }
+            } catch (_) {}
           }
         }
         // Server will broadcast MoveCompleted and GameStateUpdate; rely on handlers
@@ -547,10 +576,15 @@ class GameController extends ChangeNotifier {
               lastMoveResult = serverRes2;
               lastMovePlayerId = mover.id;
               developer.log('Background persisted simulated move: dice=${serverRes2.dice} newPosition=${serverRes2.newPosition}', name: 'GameController');
-                await _refreshPlayersFromServer();
-                try {
-                  await _maybeFetchProfesorForPosition(serverRes2.newPosition);
-                } catch (_) {}
+                  await _refreshPlayersFromServer();
+                  try {
+                    final pos2 = serverRes2.newPosition;
+                    if (game != null && game!.ladders.any((l) => l.bottomPosition == pos2)) {
+                      await _maybeFetchProfesorForPosition(pos2);
+                    } else {
+                      developer.log('Skipping profesor fetch for background persisted move pos=$pos2 (no ladder present)', name: 'GameController');
+                    }
+                  } catch (_) {}
             } catch (e2) {
               developer.log('Background persist failed: ${e2.toString()}', name: 'GameController');
             }
@@ -565,7 +599,14 @@ class GameController extends ChangeNotifier {
           // If persisted we proactively refresh so polling clients see it
           await _refreshPlayersFromServer();
           try {
-            if (lastMoveResult != null) await _maybeFetchProfesorForPosition(lastMoveResult!.newPosition);
+            if (lastMoveResult != null) {
+              final pos = lastMoveResult!.newPosition;
+              if (game != null && game!.ladders.any((l) => l.bottomPosition == pos)) {
+                await _maybeFetchProfesorForPosition(pos);
+              } else {
+                developer.log('Skipping profesor fetch after persisted simulated move pos=$pos (no ladder present)', name: 'GameController');
+              }
+            }
           } catch (_) {}
         }
 

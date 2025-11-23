@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import '../api_client.dart';
 import '../models/move_result_dto.dart';
 import '../models/profesor_question_dto.dart';
@@ -13,8 +14,17 @@ class MoveService {
 
   Future<ProfesorQuestionDto> getProfesor(String gameId) async {
     final resp = await _client.postJson('/api/Moves/get-profesor', {'gameId': gameId});
-    if (resp is Map) return ProfesorQuestionDto.fromJson(Map<String, dynamic>.from(resp));
-    throw Exception('Unexpected getProfesor response: ${resp.runtimeType}');
+    try {
+      if (resp is Map) {
+        developer.log('MoveService.getProfesor raw response: ${resp.toString()}', name: 'MoveService');
+        return ProfesorQuestionDto.fromJson(Map<String, dynamic>.from(resp));
+      }
+      developer.log('MoveService.getProfesor unexpected response type: ${resp.runtimeType}', name: 'MoveService');
+      throw Exception('Unexpected getProfesor response: ${resp.runtimeType}');
+    } catch (e) {
+      developer.log('MoveService.getProfesor parse error: ${e.toString()}', name: 'MoveService');
+      rethrow;
+    }
   }
 
   Future<MoveResultDto> answerProfesor(String gameId, String questionId, String answer) async {
