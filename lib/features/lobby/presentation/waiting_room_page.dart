@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'package:flutter/services.dart';
 
 import '../state/lobby_controller.dart';
 import '../../../core/models/room_summary_dto.dart';
@@ -28,124 +29,69 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
     // load initial room info
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        final gameCtrl = Provider.of<GameController>(context, listen: false);
+        // Do not auto-navigate to the game. Many deployments create the game
+        // record before players are attached, which caused the app to open
+        // an empty board. Show a notification and keep the room UI active.
         final r = await ctrl.getRoomById(widget.roomId);
         try { developer.log('WaitingRoom init for room=${widget.roomId} fetchedRoom=${r?.toString() ?? '<null>'}', name: 'WaitingRoomPage'); } catch (_) {}
-
-      // If the room is already in-game, attempt to enter the active game directly
-      try {
         if (r != null && r.status != null && r.status!.toLowerCase().contains('ingame')) {
-          // Prefer explicit gameId when provided by the server
-          final gid = r.gameId;
-          try { developer.log('Room status=ingame detected for room=${widget.roomId} gameId=$gid', name: 'WaitingRoomPage'); } catch (_) {}
-          if (gid != null && gid.isNotEmpty) {
-            final ok = await gameCtrl.loadGame(gid);
-            if (ok && gameCtrl.game != null) {
-              if (!mounted) return;
-              Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
-              return;
-            }
-          }
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Room is in-game. Use "Enter Game" to join when ready.')));
+        }
 
-          // Fallbacks: try loading by using roomId as a game id
+        // start polling so the waiting room updates automatically
+        ctrl.startPolling(intervalSeconds: 1);
+
+        // Watcher: refresh room info periodically and auto-enter when a game exists.
+        // Behavior: prefer explicit gameId; attempt to load game and navigate. Wait
+        // briefly for players to sync but still navigate even if players are empty
+        // (user requested auto-join for everyone when the game is created).
+        _roomWatcherTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
           try {
-            final tryByRoom = await gameCtrl.loadGameByRoom(widget.roomId);
-            if (tryByRoom && gameCtrl.game != null) {
-              if (!mounted) return;
-              Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
-              return;
-            }
-          } catch (_) {}
-
-          // If we reach here, we couldn't find the active game — let
-          // the user stay in the waiting room and use the debug buttons to inspect.
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Room already in-game but no active game could be located.')));
-        }
-      } catch (_) {}
-
-      // start polling so the waiting room updates automatically
-      // Polling merged safely in controller; enable it for normal behavior.
-      // Use a shorter interval (1s) to reduce perceived latency when SignalR is unavailable.
-      ctrl.startPolling(intervalSeconds: 1);
-
-      // Also start a focused watcher that checks whether an active game
-      // exists for this room (some backends create a game but do not
-      // immediately update the public rooms list). This ensures players
-      // in the waiting room are redirected to the active game promptly.
-      _roomWatcherTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-        try {
-          // First refresh the room info from the lobby so we pick up any
-          // server-side updates such as `status` or `gameId`.
-          final lobby = Provider.of<LobbyController>(context, listen: false);
-          final refreshed = await lobby.getRoomById(widget.roomId);
-          if (refreshed != null) {
-            try { developer.log('Watcher refreshed room=${widget.roomId} status=${refreshed.status} gameId=${refreshed.gameId} players=${refreshed.playerNames}', name: 'WaitingRoomPage'); } catch (_) {}
-            // If the room has an explicit game id or status changed to in-game,
-            // try to load the game by id first (preferred), otherwise probe
-            // using loadGameByRoom as a fallback.
-            final gid = refreshed.gameId;
-            if (gid != null && gid.isNotEmpty) {
-              try { developer.log('Watcher attempting to load game by id=$gid', name: 'WaitingRoomPage'); } catch (_) {}
-              final ok = await gameCtrl.loadGame(gid);
-              if (ok && gameCtrl.game != null) {
-                // Wait briefly for players to be present; sometimes the
-                // server creates the game record before populating players.
-                bool ready = false;
-                for (int attempt = 0; attempt < 5; attempt++) {
-                  if (gameCtrl.game != null && gameCtrl.game!.players.isNotEmpty) { ready = true; break; }
-                  await Future.delayed(const Duration(milliseconds: 400));
-                  try { await gameCtrl.loadGame(gid); } catch (_) {}
-                }
-                  if (!mounted) return;
-                  if (!ready && (gameCtrl.game == null || gameCtrl.game!.players.isEmpty)) {
-                    // If still not ready, inform user and continue watching
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Esperando a que se sincronicen los jugadores...')));
-                    return;
+            final lobby = Provider.of<LobbyController>(context, listen: false);
+            final refreshed = await lobby.getRoomById(widget.roomId);
+            if (refreshed != null) {
+              final bool hasGameFlag = (refreshed.status != null && refreshed.status!.toLowerCase().contains('ingame')) || (refreshed.gameId?.isNotEmpty ?? false);
+              if (hasGameFlag) {
+                final gameCtrl = Provider.of<GameController>(context, listen: false);
+                bool loaded = false;
+                // Prefer explicit game id
+                final gid = refreshed.gameId;
+                if (gid != null && gid.isNotEmpty) {
+                  try {
+                    loaded = await gameCtrl.loadGame(gid);
+                  } catch (_) {
+                    loaded = false;
                   }
-                  try { developer.log('Watcher navigating to game ${gameCtrl.game?.id} after finding game by id', name: 'WaitingRoomPage'); } catch (_) {}
+                }
+                // Fallback: try loading by room id
+                if (!loaded) {
+                  try {
+                    loaded = await gameCtrl.loadGameByRoom(widget.roomId);
+                  } catch (_) {
+                    loaded = false;
+                  }
+                }
+
+                if (loaded && gameCtrl.game != null) {
+                  // Give server a short window to attach players, but navigate
+                  // even if the players list remains empty (per user request).
+                  for (int attempt = 0; attempt < 4; attempt++) {
+                    if (gameCtrl.game != null && gameCtrl.game!.players.isNotEmpty) break;
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    try { if (gameCtrl.game != null) await gameCtrl.loadGame(gameCtrl.game!.id); } catch (_) {}
+                  }
+                  if (!mounted) return;
                   _roomWatcherTimer?.cancel();
                   Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
                   return;
-              }
-            }
-            if (refreshed.status != null && refreshed.status!.toLowerCase().contains('ingame')) {
-              final found = await gameCtrl.loadGameByRoom(widget.roomId);
-                if (found && gameCtrl.game != null) {
-                  try { developer.log('Watcher loaded game by room; navigating to ${gameCtrl.game?.id}', name: 'WaitingRoomPage'); } catch (_) {}
-                bool ready = false;
-                for (int attempt = 0; attempt < 5; attempt++) {
-                  if (gameCtrl.game != null && gameCtrl.game!.players.isNotEmpty) { ready = true; break; }
-                  await Future.delayed(const Duration(milliseconds: 400));
-                  try { await gameCtrl.loadGameByRoom(widget.roomId); } catch (_) {}
                 }
-                  if (!mounted) return;
-                  if (!ready && (gameCtrl.game == null || gameCtrl.game!.players.isEmpty)) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Esperando a que se sincronicen los jugadores...')));
-                    return;
-                  }
-                  try { developer.log('Watcher navigating to game ${gameCtrl.game?.id} after loading by room', name: 'WaitingRoomPage'); } catch (_) {}
-                  _roomWatcherTimer?.cancel();
-                  Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
-                  return;
               }
             }
+            if (mounted) setState(() {});
+          } catch (e) {
+            try { developer.log('WaitingRoom watcher error: ${e.toString()}', name: 'WaitingRoomPage'); } catch (_) {}
           }
-          // Final attempt: probe the game endpoint directly by room id
-            final found = await gameCtrl.loadGameByRoom(widget.roomId);
-            if (found && gameCtrl.game != null) {
-              try { developer.log('Watcher final probe found game ${gameCtrl.game?.id}; navigating', name: 'WaitingRoomPage'); } catch (_) {}
-              if (!mounted) return;
-              _roomWatcherTimer?.cancel();
-              Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
-              return;
-            }
-        } catch (e) {
-          // keep watching; log for debugging
-          try { final s = e.toString();  print('WaitingRoom watcher error: $s'); } catch (_) {}
-        }
-      });
-
+        });
       } catch (e, st) {
         try { developer.log('WaitingRoom init error: ${e.toString()}\n$st', name: 'WaitingRoomPage'); } catch (_) {}
         if (mounted) {
@@ -316,53 +262,53 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                                       setState(() {});
                                     },
                                   ),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.code),
-                                    label: const Text('Show Raw JSON'),
-                                    onPressed: () async {
-                                      try {
-                                        final client = ApiClient();
-                                        final raw = await client.getJson('/api/Lobby/rooms/${widget.roomId}');
-                                        final pretty = const JsonEncoder.withIndent('  ').convert(raw);
-                                        if (!mounted) return;
-                                        showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Room JSON'), content: SingleChildScrollView(child: Text(pretty)), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))]));
-                                      } catch (e) {
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.bug_report),
-                                    label: const Text('Show Diagnostics'),
-                                    onPressed: () async {
-                                      try {
-                                        final gameCtrl = Provider.of<GameController>(context, listen: false);
-                                        final details = StringBuffer();
-                                        details.writeln('gameCtrl.error: ${gameCtrl.error}');
-                                        details.writeln('lobby.error: ${lobby.error}');
-                                        details.writeln('lastSignalRError: ${gameCtrl.lastSignalRError}');
-                                        details.writeln('ApiClient.lastRequestSummary: ${ApiClient.lastRequestSummary}');
-                                        details.writeln('ApiClient.lastResponseSummary: ${ApiClient.lastResponseSummary}');
-                                        if (!mounted) return;
-                                        showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Diagnostics'), content: SingleChildScrollView(child: Text(details.toString())), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))]));
-                                      } catch (e) {
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diagnostics failed: ${e.toString()}')));
-                                      }
-                                    },
-                                  );
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error fetching raw JSON: ${e.toString()}')));
-                                      }
-                                    },
-                                  ),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.login),
-                                    label: const Text('Try Re-join'),
-                                    onPressed: () async {
-                                      final ok = await lobby.joinRoom(widget.roomId);
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Join succeeded' : 'Join failed: ${lobby.error}')));
-                                      await lobby.getRoomById(widget.roomId);
-                                      setState(() {});
-                                      await _ensureJoinedIfNeeded();
-                                    },
-                                  ),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.code),
+                                        label: const Text('Show Raw JSON'),
+                                        onPressed: () async {
+                                          try {
+                                            final client = ApiClient();
+                                            final raw = await client.getJson('/api/Lobby/rooms/${widget.roomId}');
+                                            final pretty = const JsonEncoder.withIndent('  ').convert(raw);
+                                            if (!mounted) return;
+                                            showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Room JSON'), content: SingleChildScrollView(child: Text(pretty)), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))]));
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error fetching raw JSON: ${e.toString()}')));
+                                          }
+                                        },
+                                      ),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.bug_report),
+                                        label: const Text('Show Diagnostics'),
+                                        onPressed: () async {
+                                          try {
+                                            final gameCtrl = Provider.of<GameController>(context, listen: false);
+                                            final details = StringBuffer();
+                                            details.writeln('gameCtrl.error: ${gameCtrl.error}');
+                                            details.writeln('lobby.error: ${lobby.error}');
+                                            details.writeln('lastSignalRError: ${gameCtrl.lastSignalRError}');
+                                            details.writeln('ApiClient.lastRequestSummary: ${ApiClient.lastRequestSummary}');
+                                            details.writeln('ApiClient.lastResponseSummary: ${ApiClient.lastResponseSummary}');
+                                            if (!mounted) return;
+                                            showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Diagnostics'), content: SingleChildScrollView(child: Text(details.toString())), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))]));
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diagnostics failed: ${e.toString()}')));
+                                          }
+                                        },
+                                      ),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.login),
+                                        label: const Text('Try Re-join'),
+                                        onPressed: () async {
+                                          final ok = await lobby.joinRoom(widget.roomId);
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Join succeeded' : 'Join failed: ${lobby.error}')));
+                                          await lobby.getRoomById(widget.roomId);
+                                          setState(() {});
+                                          await _ensureJoinedIfNeeded();
+                                        },
+                                      ),
                                 ],
                               )
                             ],
@@ -573,7 +519,13 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                                         if (!present) {
                                           // If still not present, show error so user knows join may have failed
                                           if (!mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo confirmar que estés en la partida. Intenta entrar manualmente.')));
+                                            // Show diagnostic dialog so user can copy request/response details
+                                            final details = StringBuffer();
+                                            details.writeln('gameCtrl.error: ${gameCtrl.error}');
+                                            details.writeln('ApiClient.lastRequestSummary: ${ApiClient.lastRequestSummary}');
+                                            details.writeln('ApiClient.lastResponseSummary: ${ApiClient.lastResponseSummary}');
+                                            if (!mounted) return;
+                                            showDialog(context: context, builder: (_) => AlertDialog(title: const Text('No se pudo confirmar que estés en la partida'), content: SingleChildScrollView(child: Text(details.toString())), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cerrar')), TextButton(onPressed: () { try { Clipboard.setData(ClipboardData(text: details.toString())); } catch(_){} Navigator.of(context).pop(); }, child: const Text('Copiar'))]));
                                         } else {
                                           final id = gameCtrl.game!.id;
                                           if (!mounted) return;
@@ -581,9 +533,16 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                                           return;
                                         }
                                       } else {
-                                        final err = gameCtrl.error ?? lastErr ?? 'Failed to create game';
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                                         final err = gameCtrl.error ?? lastErr ?? 'Failed to create game';
+                                         if (!mounted) return;
+                                         // Show more detailed dialog so user can copy diagnostics
+                                         final details = StringBuffer();
+                                         details.writeln('error: $err');
+                                         details.writeln('gameCtrl.error: ${gameCtrl.error}');
+                                         details.writeln('lobby.error: ${lobby.error}');
+                                         details.writeln('ApiClient.lastRequestSummary: ${ApiClient.lastRequestSummary}');
+                                         details.writeln('ApiClient.lastResponseSummary: ${ApiClient.lastResponseSummary}');
+                                         showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Create Game Failed'), content: SingleChildScrollView(child: Text(details.toString())), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cerrar')), TextButton(onPressed: () { try { Clipboard.setData(ClipboardData(text: details.toString())); } catch(_){} Navigator.of(context).pop(); }, child: const Text('Copiar'))]));
                                       }
                                   },
                           ),

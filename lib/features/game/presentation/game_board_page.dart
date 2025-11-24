@@ -1,4 +1,6 @@
 import 'dart:developer' as developer;
+import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../auth/state/auth_controller.dart';
@@ -77,22 +79,23 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
                 children: [
                   Text(q.question),
                   const SizedBox(height: 12),
-                  ...q.options.map((opt) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: ElevatedButton(
-                          onPressed: ctrl.answering
-                              ? null
-                              : () async {
-                                  Navigator.of(ctx).pop();
-                                  await ctrl.answerProfesor(q.questionId, opt);
-                                  // clear currentQuestion after answering
-                                  ctrl.currentQuestion = null;
-                                },
-                          child: ctrl.answering
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Text(opt),
-                        ),
-                      )),
+                                  ...q.options.map((opt) {
+                                    final label = opt.trim().isEmpty ? '<empty>' : opt;
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                      child: ElevatedButton(
+                                        onPressed: ctrl.answering
+                                            ? null
+                                            : () async {
+                                                Navigator.of(ctx).pop();
+                                                await _submitProfesorAnswer(q.questionId, opt, ctx);
+                                              },
+                                        child: ctrl.answering
+                                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : Text(label),
+                                      ),
+                                    );
+                                  }),
                 ],
               ),
             );
@@ -437,23 +440,22 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
                           return Column(mainAxisSize: MainAxisSize.min, children: [
                             Text(q.question, style: const TextStyle(color: Colors.white, fontSize: 16)),
                             const SizedBox(height: 12),
-                            ...q.options.map((opt) => Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                  child: ElevatedButton(
-                                    onPressed: c.answering
-                                        ? null
-                                        : () async {
-                                            try {
-                                              // capture and then clear the dialog state
-                                              await c.answerProfesor(q.questionId, opt);
-                                              c.currentQuestion = null;
-                                            } catch (_) {}
-                                          },
-                                    child: c.answering
-                                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                        : Text(opt),
-                                  ),
-                                )),
+                            ...q.options.map((opt) {
+                              final label = opt.trim().isEmpty ? '<empty>' : opt;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                child: ElevatedButton(
+                                  onPressed: c.answering
+                                      ? null
+                                      : () async {
+                                          await _submitProfesorAnswer(q.questionId, opt, innerCtx);
+                                        },
+                                  child: c.answering
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : Text(label),
+                                ),
+                              );
+                            }),
                           ]);
                         }
 
@@ -516,8 +518,11 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
     if (mr == null) return;
     try { developer.log('GameBoardPage._onControllerChanged lastMoveResult dice=${mr.dice} newPosition=${mr.newPosition}', name: 'GameBoardPage'); } catch (_) {}
     if (_showDice) return; // already animating
-    // compute the applied steps (newPosition - previousPosition) for UI only
-    int appliedToShow = mr.dice;
+    // compute the die face to show. Prefer the server-provided dice value
+    // when it looks like a valid face (1..6). If the server reports a
+    // moved-steps value (e.g. after ladder/snake adjustments) we fall back
+    // to the computed steps but clamp to 1..6 so the die face is valid.
+    int appliedToShow = (mr.dice >= 1 && mr.dice <= 6) ? mr.dice : mr.dice;
     if (ctrl.game != null) {
       try {
         int prevPos = -1;
@@ -537,13 +542,20 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
         }
         if (prevPos >= 0) {
           final comp = mr.newPosition - prevPos;
-          if (comp > 0) appliedToShow = comp;
+          if (comp > 0 && (mr.dice < 1 || mr.dice > 6)) {
+            // If server didn't provide a clear die face, use the computed
+            // steps but clamp to 1..6 so the die face is valid.
+            appliedToShow = comp.clamp(1, 6).toInt();
+          }
         }
       } catch (_) {
         // ignore and leave appliedToShow as mr.dice
       }
     }
     if (appliedToShow <= 0) appliedToShow = 1; // ensure positive display
+    // Ensure final die face is within 1..6
+    if (appliedToShow < 1) appliedToShow = 1;
+    if (appliedToShow > 6) appliedToShow = ((appliedToShow % 6) == 0) ? 6 : (appliedToShow % 6);
     _diceNumber = 1; // start visible sequence at 1
     setState(() { _showDice = true; });
     try {
@@ -609,7 +621,7 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
       // small pause then snap to final
       await Future.delayed(const Duration(milliseconds: 160));
       if (!mounted) return;
-      setState(() { _diceNumber = finalNumber.clamp(1, 6); });
+      setState(() { _diceNumber = finalNumber.clamp(1, 6).toInt(); });
 
       // Scale pop animation to emphasize final face
       try {
@@ -620,6 +632,63 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
       } catch (_) {}
     } finally {
       _diceRolling = false;
+    }
+  }
+
+  Future<void> _showErrorDialog(BuildContext ctx, String title, String message) async {
+    try {
+      await showDialog<void>(context: ctx, builder: (_) {
+        return AlertDialog(
+          title: Text(title),
+          content: SingleChildScrollView(child: Text(message)),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                try { await Clipboard.setData(ClipboardData(text: message)); } catch (_) {}
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Copiar'),
+            ),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cerrar')),
+          ],
+        );
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _submitProfesorAnswer(String questionId, String answer, BuildContext ctx) async {
+    final ctrl = Provider.of<GameController>(context, listen: false);
+    try {
+      var res;
+      // Try once, then retry once on timeout
+      try {
+        res = await ctrl.answerProfesor(questionId, answer).timeout(const Duration(seconds: 15));
+      } on TimeoutException {
+        // retry once
+        try {
+          res = await ctrl.answerProfesor(questionId, answer).timeout(const Duration(seconds: 15));
+        } on TimeoutException catch (_) {
+          if (!mounted) return;
+          await _showErrorDialog(ctx, 'Timeout', 'La respuesta tardó demasiado en procesarse y agotó el tiempo.');
+          return;
+        }
+      }
+
+      if (res == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(ctrl.error ?? 'Answer failed')));
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Answer submitted')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      await _showErrorDialog(ctx, 'Answer error', e.toString());
+    } finally {
+      try {
+        ctrl.answering = false;
+        ctrl.currentQuestion = null;
+      } catch (_) {}
     }
   }
 }
