@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../auth/state/auth_controller.dart';
 
 import '../state/game_controller.dart';
 import 'game_board_widget.dart';
@@ -28,11 +29,24 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
   void initState() {
     super.initState();
     final ctrl = Provider.of<GameController>(context, listen: false);
-    if (widget.gameId == 'new') {
-      ctrl.createOrJoinGame();
-    } else {
-      ctrl.loadGame(widget.gameId);
-    }
+    // Wait for AuthController to finish loading preferences (token/user)
+    // to avoid an unauthenticated call to getGame which may return an
+    // incomplete game (players empty). This prevents a race on web
+    // where shared preferences initialization can be slower (deployed).
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final auth = Provider.of<AuthController>(context, listen: false);
+      // Wait up to ~3 seconds for auth to become ready/logged-in
+      int attempts = 0;
+      while (!auth.isLoggedIn && attempts < 15) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        attempts++;
+      }
+      if (widget.gameId == 'new') {
+        await ctrl.createOrJoinGame();
+      } else {
+        await ctrl.loadGame(widget.gameId);
+      }
+    });
     // Listen for move results to trigger dice animation reliably
     ctrl.addListener(_onControllerChanged);
     // Start polling once when the page is initialized so positions refresh
@@ -131,12 +145,34 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
       body: Column(
         children: [
           if (offlineMode)
-            Container(
-              width: double.infinity,
-              color: Colors.amber.shade100,
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-              child: Row(children: [const Icon(Icons.signal_wifi_off, color: Colors.brown), const SizedBox(width: 8), const Expanded(child: Text('Conexión degradada: usando polling/simulación. Es posible que otros jugadores no vean cambios inmediatamente.'))]),
-            ),
+            Consumer<GameController>(builder: (ctx, c, _) {
+              final err = c.lastSignalRError;
+              return Container(
+                width: double.infinity,
+                color: Colors.amber.shade100,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: Row(children: [
+                  const Icon(Icons.signal_wifi_off, color: Colors.brown),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(err == null ? 'Conexión degradada: usando polling/simulación. Es posible que otros jugadores no vean cambios inmediatamente.' : 'Conexión degradada: ${err.length > 160 ? err.substring(0, 160) + '...' : err}')),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reconnect'),
+                    onPressed: () async {
+                      final ok = await c.tryReconnectSignalR();
+                      if (!ok) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reconnect failed: ${c.lastSignalRError ?? 'unknown'}')));
+                      } else {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reconnected to SignalR')));
+                      }
+                    },
+                  ),
+                ]),
+              );
+            }),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(12),

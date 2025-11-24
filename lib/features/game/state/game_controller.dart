@@ -30,6 +30,8 @@ class GameController extends ChangeNotifier {
   ProfesorQuestionDto? currentQuestion;
   String? _currentUserId;
   String? _currentUsername;
+  /// Last error message from SignalR connection attempts (for UI/debug)
+  String? lastSignalRError;
 
   /// Indicates whether a SignalR connection was successfully established
   /// for the current game. If false, controller will fall back to REST calls.
@@ -221,6 +223,9 @@ class GameController extends ChangeNotifier {
       final token = prefs.getString('token');
 
       try {
+        // Clear previous connect error when attempting a new connect
+        lastSignalRError = null;
+        notifyListeners();
         // Log whether token is present (mask for safety) to help debugging
         try {
           final hasToken = token != null && token.isNotEmpty;
@@ -334,11 +339,39 @@ class GameController extends ChangeNotifier {
 
       } catch (e) {
         signalRAvailable = false;
+        lastSignalRError = e.toString();
         developer.log('GameController._connectToGameHub: signalR connect failed, falling back to polling: ${e.toString()}', name: 'GameController');
+        notifyListeners();
         _startGamePolling();
       }
     } finally {
       _hubBusy = false;
+    }
+  }
+
+  /// Public helper: try to reconnect SignalR for the current game and return
+  /// whether the connection is established. Updates `lastSignalRError`.
+  Future<bool> tryReconnectSignalR() async {
+    if (game == null) {
+      lastSignalRError = 'No game loaded to reconnect to';
+      notifyListeners();
+      return false;
+    }
+    lastSignalRError = null;
+    notifyListeners();
+    try {
+      await _connectToGameHub(game!.id);
+      if (signalRAvailable) {
+        lastSignalRError = null;
+        notifyListeners();
+        return true;
+      }
+      // If not available, leave lastSignalRError set by _connectToGameHub
+      return false;
+    } catch (e) {
+      lastSignalRError = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 
