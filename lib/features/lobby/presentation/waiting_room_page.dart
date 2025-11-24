@@ -434,7 +434,14 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
 
                                     // If we couldn't find a game for this room or local user isn't in it, inform the user
                                     if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(gameCtrl.error ?? 'No active game found for this room or you are not in the game yet.')));
+                                    final details = <String>[];
+                                    if (gameCtrl.error != null && gameCtrl.error!.isNotEmpty) details.add('gameErr=${gameCtrl.error}');
+                                    if (lobby.error != null && lobby.error!.isNotEmpty) details.add('lobbyErr=${lobby.error}');
+                                    final sigErr = gameCtrl.lastSignalRError;
+                                    if (sigErr != null && sigErr.isNotEmpty) details.add('signalR=${sigErr}');
+                                    final msg = (details.isNotEmpty) ? details.join(' | ') : 'No active game found for this room or you are not in the game yet.';
+                                    developer.log('Enter Game failed: $msg', name: 'WaitingRoomPage');
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
                                   } catch (e) {
                                     if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enter game failed: ${e.toString()}')));
