@@ -21,7 +21,7 @@ class ApiClient {
     developer.log('HTTP GET: $uri', name: 'ApiClient');
     developer.log('Request headers: ${headers.toString()}', name: 'ApiClient');
     lastRequestSummary = 'GET $uri headers=${headers.toString()}';
-    final resp = await http.get(uri, headers: headers);
+    final resp = await http.get(uri, headers: headers).timeout(const Duration(seconds: 10));
     developer.log('Response ${resp.statusCode}: ${resp.body}', name: 'ApiClient');
     lastResponseSummary = 'Status ${resp.statusCode} body=${resp.body}';
     return _handleResponse(resp);
@@ -34,7 +34,7 @@ class ApiClient {
     developer.log('Request headers: ${headers.toString()}', name: 'ApiClient');
     developer.log('Request body: ${jsonEncode(body)}', name: 'ApiClient');
     lastRequestSummary = 'POST $uri headers=${headers.toString()} body=${jsonEncode(body)}';
-    final resp = await http.post(uri, headers: headers, body: jsonEncode(body));
+    final resp = await http.post(uri, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 12));
     developer.log('Response ${resp.statusCode}: ${resp.body}', name: 'ApiClient');
     lastResponseSummary = 'Status ${resp.statusCode} body=${resp.body}';
     return _handleResponse(resp);

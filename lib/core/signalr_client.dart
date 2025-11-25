@@ -34,12 +34,28 @@ class SignalRClient {
     );
 
     try {
-      final conn = HubConnectionBuilder().withUrl(url, options).withAutomaticReconnect().build();
-      final startF = conn.start();
-      if (startF == null) throw Exception('SignalR start returned null');
-      await startF.timeout(const Duration(seconds: 8));
-
-      _conn = conn;
+      // Try multiple connect attempts with incremental timeouts/backoff
+      const int maxAttempts = 3;
+      int attempt = 0;
+      HubConnection? conn;
+      while (attempt < maxAttempts) {
+        try {
+          conn = HubConnectionBuilder().withUrl(url, options).withAutomaticReconnect().build();
+          final startF = conn.start();
+          if (startF == null) throw Exception('SignalR start returned null');
+          final timeoutSec = 8 + attempt * 4; // 8s, 12s, 16s
+          await startF.timeout(Duration(seconds: timeoutSec));
+          _conn = conn;
+          break;
+        } catch (inner) {
+          developer.log('[SignalR] connect attempt ${attempt + 1} failed: ${inner.toString()}', name: 'SignalRClient');
+          try { await conn?.stop().timeout(const Duration(seconds: 3)); } catch (_) {}
+          conn = null;
+          attempt++;
+          await Future.delayed(Duration(milliseconds: 300 * attempt));
+        }
+      }
+      if (_conn == null) throw Exception('SignalR start returned null after $maxAttempts attempts');
 
       // Lifecycle logging
       try {
@@ -101,7 +117,7 @@ class SignalRClient {
         try {
           final sf = _conn!.start();
           if (sf != null) {
-            await sf.timeout(const Duration(seconds: 6));
+            await sf.timeout(const Duration(seconds: 12));
           } else {
             throw Exception('SignalR start returned null');
           }

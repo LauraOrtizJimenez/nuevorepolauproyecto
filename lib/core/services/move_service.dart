@@ -29,7 +29,30 @@ class MoveService {
 
   Future<MoveResultDto> answerProfesor(String gameId, String questionId, String answer) async {
     final resp = await _client.postJson('/api/Moves/answer-profesor', {'gameId': gameId, 'questionId': questionId, 'answer': answer});
-    if (resp is Map) return MoveResultDto.fromJson(Map<String, dynamic>.from(resp));
+    // Accept a few shapes for the response to be tolerant with different backends
+    try {
+      if (resp is Map) {
+        // Common case: resp is directly the move result
+        if (resp.containsKey('dice') || resp.containsKey('newPosition') || resp.containsKey('MoveResult') || resp.containsKey('moveResult')) {
+          // If nested under 'MoveResult' or 'moveResult', extract it
+          if ((resp['MoveResult'] is Map) || (resp['moveResult'] is Map)) {
+            final inner = Map<String, dynamic>.from(resp['MoveResult'] ?? resp['moveResult']);
+            return MoveResultDto.fromJson(inner);
+          }
+          return MoveResultDto.fromJson(Map<String, dynamic>.from(resp));
+        }
+        // If the response wraps data: { data: {...} }
+        if (resp.containsKey('data') && resp['data'] is Map) {
+          return MoveResultDto.fromJson(Map<String, dynamic>.from(resp['data']));
+        }
+      }
+      if (resp is List && resp.isNotEmpty && resp[0] is Map) {
+        return MoveResultDto.fromJson(Map<String, dynamic>.from(resp[0] as Map));
+      }
+    } catch (e) {
+      developer.log('MoveService.answerProfesor parse error: ${e.toString()} resp=$resp', name: 'MoveService');
+      rethrow;
+    }
     throw Exception('Unexpected answerProfesor response: ${resp.runtimeType}');
   }
 

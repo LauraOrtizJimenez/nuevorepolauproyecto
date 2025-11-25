@@ -73,13 +73,30 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                 }
 
                 if (loaded && gameCtrl.game != null) {
-                  // Give server a short window to attach players, but navigate
-                  // even if the players list remains empty (per user request).
-                  for (int attempt = 0; attempt < 4; attempt++) {
-                    if (gameCtrl.game != null && gameCtrl.game!.players.isNotEmpty) break;
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    try { if (gameCtrl.game != null) await gameCtrl.loadGame(gameCtrl.game!.id); } catch (_) {}
+                  // Ensure local user is attached to the game before navigating.
+                  final prefs = Provider.of<AuthController>(context, listen: false);
+                  final localName = prefs.username ?? '';
+                  bool present = false;
+                  if (localName.isNotEmpty) {
+                    present = gameCtrl.game!.players.any((p) => p.username.trim().toLowerCase() == localName.trim().toLowerCase());
                   }
+
+                  if (!present && localName.isNotEmpty) {
+                    // Try to join the lobby room and attach to the game via createOrJoinGame/load retries.
+                    final lobby = Provider.of<LobbyController>(context, listen: false);
+                    for (int attempt = 0; attempt < 6 && !present; attempt++) {
+                      try { await lobby.joinRoom(widget.roomId); } catch (_) {}
+                      try { await lobby.getRoomById(widget.roomId); } catch (_) {}
+                      try { await gameCtrl.createOrJoinGame(roomId: widget.roomId); } catch (_) {}
+                      try { await gameCtrl.loadGameByRoom(widget.roomId); } catch (_) {}
+                      if (gameCtrl.game != null) {
+                        present = gameCtrl.game!.players.any((p) => p.username.trim().toLowerCase() == localName.trim().toLowerCase());
+                      }
+                      if (present) break;
+                      await Future.delayed(const Duration(milliseconds: 400));
+                    }
+                  }
+
                   if (!mounted) return;
                   _roomWatcherTimer?.cancel();
                   Navigator.pushReplacementNamed(context, '/game/${gameCtrl.game!.id}');
