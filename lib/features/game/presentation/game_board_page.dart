@@ -686,8 +686,9 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
       await _showErrorDialog(ctx, 'Answer error', e.toString());
     } finally {
       try {
-        ctrl.answering = false;
-        ctrl.currentQuestion = null;
+        // Use controller helpers so listeners are notified and UI updates
+        ctrl.setAnswering(false);
+        ctrl.clearCurrentQuestion();
       } catch (_) {}
     }
   }

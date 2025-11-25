@@ -877,6 +877,18 @@ class GameController extends ChangeNotifier {
     }
   }
 
+  /// Clear the active profesor question and notify listeners.
+  void clearCurrentQuestion() {
+    currentQuestion = null;
+    notifyListeners();
+  }
+
+  /// Set the answering flag and notify listeners.
+  void setAnswering(bool v) {
+    answering = v;
+    notifyListeners();
+  }
+
   Future<bool> surrender() async {
     if (game == null) return false;
     try {
