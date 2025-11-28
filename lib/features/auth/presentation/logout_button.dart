@@ -9,62 +9,265 @@ class LogoutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthController>(context);
-    if (auth.isLoggedIn) {
-      final username = auth.username ?? 'You';
-      return Padding(
-        padding: const EdgeInsets.only(right: 8.0),
-        child: PopupMenuButton<int>(
-          tooltip: 'Account',
-          offset: const Offset(0, 48),
-          itemBuilder: (_) => [
-            const PopupMenuItem<int>(value: 1, child: Text('Logout')),
-          ],
-          onSelected: (v) async {
-            if (v == 1) {
-              await auth.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            }
-          },
-          child: Row(
-            children: [
-              // small active dot + avatar
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircleAvatar(radius: 14, backgroundColor: Theme.of(context).primaryColor, child: Text(username.isNotEmpty ? username[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white))),
-                    Positioned(
-                      right: 2,
-                      bottom: 2,
-                      child: Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5))),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 120),
-                child: Text(username, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final username = auth.username ?? "";
 
-    return IconButton(
-      icon: const Icon(Icons.login),
-      tooltip: 'Login',
-      onPressed: () {
-        Navigator.pushNamed(context, '/login');
+    final initial =
+        username.isNotEmpty ? username[0].toUpperCase() : "?";
+
+    return GestureDetector(
+      onTap: () => _showProfileSheet(context, auth),
+      child: Row(
+        children: [
+          // nombre (pequeño) al lado del avatar, solo si hay espacio
+          if (username.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                username,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF065A4B), // verde oscuro del tema
+                ),
+              ),
+            ),
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: const Color(0xFF4A90E2),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  //            HOJA DE PERFIL (BOTTOM SHEET)
+  // ─────────────────────────────────────────────
+  void _showProfileSheet(BuildContext context, AuthController auth) {
+    final username = auth.username ?? "Jugador";
+
+    // TODO: cuando tengas este dato en backend, cámbialo aquí.
+    // Por ahora lo dejamos en 0 para no romper nada.
+    const int gamesWon = 0;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.98),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, -6),
+                )
+              ],
+            ),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // tirita decorativa arriba
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: const Color(0xFF4A90E2),
+                        child: Text(
+                          username.isNotEmpty
+                              ? username[0].toUpperCase()
+                              : "?",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF065A4B),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              "Perfil de jugador",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Row(
+                    children: [
+                      _statChip(
+                        icon: Icons.emoji_events_rounded,
+                        label: "Partidas ganadas",
+                        value: "$gamesWon",
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statChip(
+                          icon: Icons.casino_rounded,
+                          label: "Modo profesores y matones",
+                          value: "Activo",
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEB5757),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
+                      ),
+                      onPressed: () async {
+                        Navigator.of(ctx).pop(); // cerrar el sheet
+                        await auth.logout();
+                        if (!context.mounted) return;
+                        Navigator.pushReplacementNamed(
+                            context, '/login');
+                      },
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text(
+                        "Cerrar sesión",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text(
+                      "Volver al lobby",
+                      style: TextStyle(
+                        color: Color(0xFF065A4B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       },
     );
   }
+
+  Widget _statChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Expanded(
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF9F5),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0DBA99),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF065A4B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+

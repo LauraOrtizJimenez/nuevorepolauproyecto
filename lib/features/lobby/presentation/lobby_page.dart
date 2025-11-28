@@ -21,8 +21,6 @@ class _LobbyPageState extends State<LobbyPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctrl = Provider.of<LobbyController>(context, listen: false);
-
-      // Poll cada 2 minutos para refrescar lista de salas
       ctrl.startPolling(intervalSeconds: 120);
       ctrl.loadRooms();
     });
@@ -38,83 +36,117 @@ class _LobbyPageState extends State<LobbyPage> {
   @override
   Widget build(BuildContext context) {
     final ctrl = Provider.of<LobbyController>(context);
+    const Color baseGreen = Color(0xFF065A4B);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Lobby'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Salas'),
         actions: const [LogoutButton()],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            _buildSearchBar(context, ctrl),
-            const SizedBox(height: 16),
-            _buildHeader(context, ctrl),
-            Expanded(
-              child: ctrl.loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _buildRoomList(context, ctrl),
+      body: Stack(
+        children: [
+          _buildBackground(),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildHeaderRow(context, baseGreen, ctrl),
+                  const SizedBox(height: 16),
+                  _buildSearchCard(context, ctrl),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ctrl.loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildRoomListCard(context, ctrl),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCreateButton(context, ctrl),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            _buildCreateButton(context, ctrl),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------
-  // SEARCH BAR
-  // ---------------------------------------------------------------
-  Widget _buildSearchBar(BuildContext context, LobbyController ctrl) {
-    return Row(
+  // ─────────────────────────────
+  //        BACKGROUND
+  // ─────────────────────────────
+  Widget _buildBackground() {
+    return Stack(
       children: [
-        Expanded(
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Find room by ID',
-              hintText: 'Enter room id',
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF065A4B), Color(0xFF044339)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: () async {
-            final id = _searchCtrl.text.trim();
-            if (id.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please enter a room id')),
-              );
-              return;
-            }
-
-            final room = await ctrl.getRoomById(id);
-            if (room != null) {
-              Navigator.pushNamed(context, '/rooms/${room.id}');
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(ctrl.error ?? 'Room not found')),
-              );
-            }
-          },
-          child: const Text('Find'),
-        )
+        Positioned(
+          top: 60,
+          left: 24,
+          child: _softIcon(Icons.school_rounded, 70),
+        ),
+        Positioned(
+          top: 150,
+          right: 40,
+          child: _softIcon(Icons.groups_rounded, 70),
+        ),
+        Positioned(
+          bottom: 90,
+          left: 60,
+          child: _softIcon(Icons.casino_rounded, 80),
+        ),
+        Positioned(
+          bottom: 40,
+          right: 80,
+          child: _softIcon(Icons.emoji_events_rounded, 70),
+        ),
       ],
     );
   }
 
-  // ---------------------------------------------------------------
-  // HEADER WITH REFRESH BUTTON
-  // ---------------------------------------------------------------
-  Widget _buildHeader(BuildContext context, LobbyController ctrl) {
+  Widget _softIcon(IconData icon, double size) {
+    return Icon(
+      icon,
+      size: size,
+      color: Colors.white.withOpacity(0.07),
+    );
+  }
+
+  // ─────────────────────────────
+  //        HEADER SUPERIOR
+  // ─────────────────────────────
+  Widget _buildHeaderRow(
+      BuildContext context, Color baseGreen, LobbyController ctrl) {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            'Rooms',
-            style: Theme.of(context).textTheme.titleLarge,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Lobby',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Únete a una sala o crea una nueva\npara comenzar la partida.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white70,
+                    ),
+              ),
+            ],
           ),
         ),
         IconButton(
@@ -123,59 +155,219 @@ class _LobbyPageState extends State<LobbyPage> {
             ctrl.startPolling(intervalSeconds: 120);
           },
           icon: const Icon(Icons.refresh),
+          color: Colors.white,
+          tooltip: 'Actualizar salas',
         ),
       ],
     );
   }
 
-  // ---------------------------------------------------------------
-  // LIST OF ROOMS
-  // ---------------------------------------------------------------
-  Widget _buildRoomList(BuildContext context, LobbyController ctrl) {
-    return ListView.builder(
-      itemCount: ctrl.rooms.length,
-      itemBuilder: (ctx, i) {
-        final r = ctrl.rooms[i];
-
-        final initials = r.name.isNotEmpty
-            ? r.name
-                .trim()
-                .split(' ')
-                .where((s) => s.isNotEmpty)
-                .map((s) => s[0])
-                .take(2)
-                .join()
-                .toUpperCase()
-            : "R";
-
-        final currentPlayers = r.playerNames.length;
-        final maxPlayers = r.maxPlayers;
-
-        return Card(
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              child: Text(
-                initials,
-                style: const TextStyle(color: Colors.white),
+  // ─────────────────────────────
+  //        SEARCH CARD
+  // ─────────────────────────────
+  Widget _buildSearchCard(BuildContext context, LobbyController ctrl) {
+    return Card(
+      color: Colors.white.withOpacity(0.95),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  labelText: 'Buscar sala por ID',
+                  hintText: 'Ingresa el ID de la sala',
+                  prefixIcon: Icon(Icons.search),
+                ),
               ),
             ),
-            title: Text(
-              r.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text('$currentPlayers/$maxPlayers players'),
-            trailing: Chip(label: Text('$currentPlayers/$maxPlayers')),
-            onTap: () => Navigator.pushNamed(context, '/rooms/${r.id}'),
-          ),
-        );
-      },
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () async {
+                final id = _searchCtrl.text.trim();
+                if (id.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Por favor ingresa un ID de sala'),
+                    ),
+                  );
+                  return;
+                }
+
+                final room = await ctrl.getRoomById(id);
+                if (room != null) {
+                  if (!mounted) return;
+                  Navigator.pushNamed(context, '/rooms/${room.id}');
+                } else {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No se encontró la sala'),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Buscar'),
+            )
+          ],
+        ),
+      ),
     );
   }
 
-  // ---------------------------------------------------------------
-  // CREATE ROOM BUTTON
-  // ---------------------------------------------------------------
+  // ─────────────────────────────
+  //       LISTA DE SALAS
+  // ─────────────────────────────
+  Widget _buildRoomListCard(BuildContext context, LobbyController ctrl) {
+    if (ctrl.rooms.isEmpty) {
+      return Card(
+        color: Colors.white.withOpacity(0.95),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Aún no hay salas creadas.\nCrea la primera sala para empezar.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      color: Colors.white.withOpacity(0.96),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: ctrl.rooms.length,
+        itemBuilder: (ctx, i) {
+          final r = ctrl.rooms[i];
+
+          final initials = r.name.isNotEmpty
+              ? r.name
+                  .trim()
+                  .split(' ')
+                  .where((s) => s.isNotEmpty)
+                  .map((s) => s[0])
+                  .take(2)
+                  .join()
+                  .toUpperCase()
+              : "S";
+
+          final currentPlayers = r.playerNames.length;
+          final maxPlayers = r.maxPlayers;
+
+          final bool isFull = currentPlayers >= maxPlayers;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.pushNamed(context, '/rooms/${r.id}'),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: isFull
+                      ? Colors.red.withOpacity(0.06)
+                      : Colors.green.withOpacity(0.04),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          Theme.of(context).colorScheme.secondary,
+                      child: Text(
+                        initials,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Jugadores: $currentPlayers / $maxPlayers',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: isFull
+                            ? Colors.red.withOpacity(0.14)
+                            : Colors.green.withOpacity(0.18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isFull
+                                ? Icons.lock_outline
+                                : Icons.play_circle_outline,
+                            size: 16,
+                            color: isFull ? Colors.red : Colors.green[800],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isFull ? 'Llena' : 'Disponible',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isFull
+                                  ? Colors.red[800]
+                                  : Colors.green[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ─────────────────────────────
+  //      BOTÓN CREAR SALA
+  // ─────────────────────────────
   Widget _buildCreateButton(BuildContext context, LobbyController ctrl) {
     return SizedBox(
       width: double.infinity,
@@ -183,19 +375,29 @@ class _LobbyPageState extends State<LobbyPage> {
         icon: const Icon(Icons.add),
         label: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: Text('Create Room', style: TextStyle(fontSize: 16)),
+          child: Text(
+            'Crear sala',
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF0DBA99),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          elevation: 6,
         ),
         onPressed: () => _showCreateDialog(context, ctrl),
       ),
     );
   }
 
-  // ---------------------------------------------------------------
-  // CREATE ROOM DIALOG
-  // ---------------------------------------------------------------
+  // ─────────────────────────────
+  //        DIALOG CREAR SALA
+  // ─────────────────────────────
   void _showCreateDialog(BuildContext context, LobbyController ctrl) {
     final nameCtrl = TextEditingController(
-      text: 'Room ${DateTime.now().millisecondsSinceEpoch % 1000}',
+      text: 'Sala ${DateTime.now().millisecondsSinceEpoch % 1000}',
     );
 
     int maxPlayers = 4;
@@ -203,18 +405,21 @@ class _LobbyPageState extends State<LobbyPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Create Room'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Crear sala'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Room name'),
+              decoration: const InputDecoration(
+                labelText: 'Nombre de la sala',
+              ),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Text('Max players:'),
+                const Text('Máximo de jugadores:'),
                 const SizedBox(width: 12),
                 DropdownButton<int>(
                   value: maxPlayers,
@@ -237,7 +442,7 @@ class _LobbyPageState extends State<LobbyPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -250,15 +455,19 @@ class _LobbyPageState extends State<LobbyPage> {
                   await ctrl.createRoom(name, maxPlayers: maxPlayers);
 
               if (room == null) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(ctrl.error ?? 'Create failed')),
+                  const SnackBar(
+                    content: Text('No se pudo crear la sala'),
+                  ),
                 );
                 return;
               }
 
+              if (!mounted) return;
               Navigator.pushNamed(context, '/rooms/${room.id}');
             },
-            child: const Text('Create'),
+            child: const Text('Crear'),
           ),
         ],
       ),

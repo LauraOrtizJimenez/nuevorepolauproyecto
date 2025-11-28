@@ -111,7 +111,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       }
 
       setState(() {
-        _room = room; // ← dato fresco del backend
+        _room = room; // dato fresco del backend
       });
 
       dev.log("[Lobby] Loaded room: ${room.playerNames.length} players",
@@ -151,7 +151,9 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       setState(() => _startingGame = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error entering game: $e")),
+        const SnackBar(
+          content: Text("No se pudo entrar a la partida"),
+        ),
       );
     }
   }
@@ -176,9 +178,15 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       } catch (_) {}
     }
 
+    // Si aún no hay datos, mostramos fondo+loader
     if (room == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Stack(
+          children: [
+            _buildBackground(),
+            const Center(child: CircularProgressIndicator()),
+          ],
+        ),
       );
     }
 
@@ -190,141 +198,356 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
         players.first.trim().toLowerCase() ==
             myUsername.trim().toLowerCase();
 
-    // 👇 NUEVO: detectar si la sala ya tiene un Game creado
+    // ¿La sala ya tiene un juego creado?
     final bool hasGame =
         room.gameId != null && room.gameId!.trim().isNotEmpty;
 
     // Texto del botón principal
     final String mainButtonText = hasGame
-        ? "Enter Game"
-        : (isHost ? "Create & Enter Game" : "Waiting for host");
+        ? "Entrar a la partida"
+        : (isHost
+            ? "Crear y entrar a la partida"
+            : "Esperando a que el anfitrión inicie");
 
     // ¿Está habilitado el botón?
     final bool canPressMainButton =
         hasGame || (isHost && !_startingGame);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text("Waiting Room ${room.id}"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        title: const Text("Sala de espera"),
       ),
-
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              "Room ${room.id} - ${room.name}",
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              "Players",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Expanded(
-            child: ListView.builder(
-              itemCount: players.length,
-              itemBuilder: (_, i) {
-                final name = players[i];
-                final isMe = name.trim().toLowerCase() ==
-                    myUsername.trim().toLowerCase();
-
-                return ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text(name),
-                  subtitle: isMe ? const Text("You") : null,
-                );
-              },
-            ),
-          ),
-
-          Center(
-            child: Text(
-              "Players: ${players.length} / $maxPlayers",
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          Center(
-            child: Column(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _loadRoomOnce,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Refresh"),
-                ),
-                const SizedBox(height: 8),
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: !canPressMainButton
-                        ? Colors.grey.shade600
-                        : Colors.green,
+          _buildBackground(),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: _buildCardContent(
+                    context: context,
+                    room: room,
+                    players: players,
+                    maxPlayers: maxPlayers,
+                    myUsername: myUsername,
+                    isHost: isHost,
+                    hasGame: hasGame,
+                    mainButtonText: mainButtonText,
+                    canPressMainButton: canPressMainButton,
                   ),
-                  onPressed: !_startingGame && canPressMainButton
-                      ? () {
-                          if (hasGame) {
-                            // ✅ Ya existe game → cualquier jugador entra al board
-                            final gameId = room!.gameId!;
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    GameBoardPage(gameId: gameId),
-                              ),
-                            );
-                          } else {
-                            // ✅ No existe game → solo host crea
-                            if (isHost) {
-                              _hostCreateAndEnterGame(room!);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      "Sólo el host puede crear la partida"),
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      : null,
-                  child: _startingGame
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(mainButtonText),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  //  FONDO TIPO JUEGO (IGUAL ESTILO QUE LOGIN/LOBBY)
+  // ------------------------------------------------------------
+  Widget _buildBackground() {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF065A4B), Color(0xFF044339)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 60,
+          left: 30,
+          child: _softIcon(Icons.meeting_room_rounded, 70),
+        ),
+        Positioned(
+          top: 140,
+          right: 60,
+          child: _softIcon(Icons.groups_rounded, 70),
+        ),
+        Positioned(
+          bottom: 80,
+          left: 60,
+          child: _softIcon(Icons.casino_rounded, 80),
+        ),
+        Positioned(
+          bottom: 40,
+          right: 80,
+          child: _softIcon(Icons.timer_rounded, 70),
+        ),
+      ],
+    );
+  }
+
+  Widget _softIcon(IconData icon, double size) {
+    return Icon(
+      icon,
+      size: size,
+      color: Colors.white.withOpacity(0.06),
+    );
+  }
+
+  // ------------------------------------------------------------
+  //  TARJETA PRINCIPAL
+  // ------------------------------------------------------------
+  Widget _buildCardContent({
+    required BuildContext context,
+    required RoomSummaryDto room,
+    required List<String> players,
+    required int maxPlayers,
+    required String myUsername,
+    required bool isHost,
+    required bool hasGame,
+    required String mainButtonText,
+    required bool canPressMainButton,
+  }) {
+    return Card(
+      color: Colors.white.withOpacity(0.97),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 12,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // HEADER SALA
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0DBA99),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.meeting_room_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Sala ${room.id}",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF065A4B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        room.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: Colors.green.withOpacity(0.12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.people_alt_outlined,
+                        size: 16,
+                        color: Colors.green[800],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${players.length} / $maxPlayers",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[800],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
 
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+
+            // LISTA DE JUGADORES
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Jugadores en la sala",
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            SizedBox(
+              height: 160,
+              child: ListView.builder(
+                itemCount: players.length,
+                itemBuilder: (_, i) {
+                  final name = players[i];
+                  final isMe = name.trim().toLowerCase() ==
+                      myUsername.trim().toLowerCase();
+
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFF4A90E2),
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : "?",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(name),
+                    subtitle: isMe ? const Text("Tú") : null,
+                    trailing: isMe && isHost
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0DBA99)
+                                  .withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              "Anfitrión",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF065A4B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        : null,
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // TEXTO DE ESTADO
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                hasGame
+                    ? "La partida ya fue creada. Puedes entrar cuando quieras."
+                    : (isHost
+                        ? "Cuando haya al menos 2 jugadores, puedes iniciar la partida."
+                        : "Espera a que el anfitrión cree la partida."),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // BOTONES
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _loadRoomOnce,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Actualizar"),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: !canPressMainButton
+                          ? Colors.grey.shade500
+                          : const Color(0xFF0DBA99),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: !_startingGame && canPressMainButton
+                        ? () {
+                            if (hasGame) {
+                              // Ya existe game → cualquier jugador entra al board
+                              final gameId = room.gameId!;
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      GameBoardPage(gameId: gameId),
+                                ),
+                              );
+                            } else {
+                              // No existe game → sólo host crea
+                              if (isHost) {
+                                _hostCreateAndEnterGame(room);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        "Sólo el anfitrión puede crear la partida"),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        : null,
+                    child: _startingGame
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            mainButtonText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
