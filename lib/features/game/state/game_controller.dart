@@ -9,6 +9,7 @@ import '../../../core/models/game_state_dto_clean.dart';
 import '../../../core/models/player_state_dto.dart';
 import '../../../core/models/move_result_dto.dart';
 import '../../../core/models/profesor_question_dto.dart';
+import '../../../core/models/emote_event.dart';
 import '../../../core/services/game_service.dart' as game_srv;
 import '../../../core/services/move_service.dart' as move_srv;
 import '../../../core/signalr_client.dart';
@@ -49,6 +50,12 @@ class GameController extends ChangeNotifier {
   bool answering = false;
 
   // ==========================================================
+  // EMOTES
+  // ==========================================================
+  final List<EmoteEvent> _emotes = [];
+  List<EmoteEvent> get emotes => List.unmodifiable(_emotes);
+
+  // ==========================================================
   // GAME CREATION / JOIN
   // ==========================================================
   Future<bool> createOrJoinGame({String? roomId}) async {
@@ -57,11 +64,17 @@ class GameController extends ChangeNotifier {
     error = null;
     notifyListeners();
 
-    developer.log('createOrJoinGame START op=$op roomId=$roomId', name: 'GameController');
+    developer.log(
+      'createOrJoinGame START op=$op roomId=$roomId',
+      name: 'GameController',
+    );
 
     Future.delayed(const Duration(seconds: 8), () {
       if (op == _opCounter && loading) {
-        developer.log('createOrJoinGame timeout clearing loading op=$op', name: 'GameController');
+        developer.log(
+          'createOrJoinGame timeout clearing loading op=$op',
+          name: 'GameController',
+        );
         loading = false;
         notifyListeners();
       }
@@ -192,7 +205,9 @@ class GameController extends ChangeNotifier {
         if (game?.players.isEmpty ?? false) {
           const int maxRetries = 6;
           int attempt = 0;
-          while (attempt < maxRetries && (game?.players.isEmpty ?? false) && op == _opCounter) {
+          while (attempt < maxRetries &&
+              (game?.players.isEmpty ?? false) &&
+              op == _opCounter) {
             await Future.delayed(const Duration(milliseconds: 350));
             try {
               final refreshed = await _gameService.getGame(gameId);
@@ -252,7 +267,10 @@ class GameController extends ChangeNotifier {
     error = null;
     notifyListeners();
 
-    developer.log('loadGameByRoom START op=$op room=$roomId', name: 'GameController');
+    developer.log(
+      'loadGameByRoom START op=$op room=$roomId',
+      name: 'GameController',
+    );
 
     Future.delayed(const Duration(seconds: 8), () {
       if (op == _opCounter && loading) {
@@ -322,6 +340,40 @@ class GameController extends ChangeNotifier {
   }
 
   // ==========================================================
+  // EMOTES: handler de evento SignalR
+  // ==========================================================
+  void _handleReceiveEmote(List<Object?>? args) {
+    try {
+      if (args == null || args.isEmpty) return;
+      final raw = args[0];
+
+      if (raw is Map) {
+        final evt = EmoteEvent.fromJson(
+          Map<String, dynamic>.from(raw as Map),
+        );
+
+        if (game != null && evt.gameId != game!.id.toString()) {
+          return;
+        }
+
+        _emotes.add(evt);
+        notifyListeners();
+
+        // se borran solos después de unos segundos
+        Future.delayed(const Duration(seconds: 4), () {
+          _emotes.remove(evt);
+          notifyListeners();
+        });
+      }
+    } catch (e) {
+      developer.log(
+        'ReceiveEmote handler error: ${e.toString()}',
+        name: 'GameController',
+      );
+    }
+  }
+
+  // ==========================================================
   // SIGNALR CONNECTION
   // ==========================================================
   Future<void> _connectToGameHub(String gameId) async {
@@ -374,7 +426,13 @@ class GameController extends ChangeNotifier {
         }
 
         _registerEvents(
-          ['GameStateUpdate', 'gameStateUpdated', 'GameUpdated', 'UpdateGame', 'GameState'],
+          [
+            'GameStateUpdate',
+            'gameStateUpdated',
+            'GameUpdated',
+            'UpdateGame',
+            'GameState'
+          ],
           (args) {
             try {
               if (_shouldIgnoreIncomingUpdates()) {
@@ -535,7 +593,12 @@ class GameController extends ChangeNotifier {
         });
 
         _registerEvents(
-          ['ReceiveProfesorQuestion', 'ReceiveProfessorQuestion', 'ProfesorQuestion', 'ProfesorAsked'],
+          [
+            'ReceiveProfesorQuestion',
+            'ReceiveProfessorQuestion',
+            'ProfesorQuestion',
+            'ProfesorAsked'
+          ],
           (args) {
             try {
               if (args != null && args.isNotEmpty && args[0] is Map) {
@@ -582,7 +645,9 @@ class GameController extends ChangeNotifier {
                   try {
                     if (game != null) {
                       final moverIndex = game!.players.indexWhere(
-                        (p) => (p.position + parsed.diceValue) == parsed.finalPosition,
+                        (p) =>
+                            (p.position + parsed.diceValue) ==
+                            parsed.finalPosition,
                       );
                       if (moverIndex >= 0) {
                         lastMovePlayerId = game!.players[moverIndex].id;
@@ -619,15 +684,12 @@ class GameController extends ChangeNotifier {
 
             _cancelWaitingForMoveWatch();
             waitingForMove = false;
-            
-            // Si hay un dado válido, solo notificar sin actualizar estado
-            // La animación del dado se mostrará primero, luego se actualizará el estado
+
             if (lastMoveResult != null && lastMoveResult!.diceValue > 0) {
               notifyListeners();
-              // NO llamar a _refreshPlayersFromServer aquí - se hará después de la animación del dado
               return;
             }
-            
+
             notifyListeners();
             await _refreshPlayersFromServer();
             try {
@@ -656,6 +718,12 @@ class GameController extends ChangeNotifier {
               );
             } catch (_) {}
           },
+        );
+
+        // 🔥 EMOTES
+        _registerEvents(
+          ['ReceiveEmote', 'EmoteReceived', 'GameEmote'],
+          _handleReceiveEmote,
         );
 
         try {
@@ -848,13 +916,10 @@ class GameController extends ChangeNotifier {
 
         try {
           developer.log(
-            'REST roll result (simulate disabled): dice=${res.dice} newPosition=${res.newPosition}',
+            'REST roll result (simulate disabled): dice=${res.diceValue} newPosition=${res.newPosition}',
             name: 'GameController',
           );
         } catch (_) {}
-
-        // NO llamar loadGame aquí - se hará después de la animación del dado
-        // await loadGame(game!.id);
 
         try {
           if (lastMoveResult != null) {
@@ -1000,7 +1065,7 @@ class GameController extends ChangeNotifier {
         persisted = true;
 
         developer.log(
-          'Simulated move persisted immediately: dice=${serverRes.dice} newPosition=${serverRes.newPosition}',
+          'Simulated move persisted immediately: dice=${serverRes.diceValue} newPosition=${serverRes.newPosition}',
           name: 'GameController',
         );
       } catch (e) {
@@ -1023,7 +1088,7 @@ class GameController extends ChangeNotifier {
         lastMovePlayerId = mover.id;
 
         developer.log(
-          'Simulated roll (local fallback): dice=${res.dice} newPosition=${res.newPosition} (persist pending)',
+          'Simulated roll (local fallback): dice=${res.diceValue} newPosition=${res.newPosition} (persist pending)',
           name: 'GameController',
         );
 
@@ -1036,7 +1101,7 @@ class GameController extends ChangeNotifier {
             lastMovePlayerId = mover.id;
 
             developer.log(
-              'Background persisted simulated move: dice=${serverRes2.dice} newPosition=${serverRes2.newPosition}',
+              'Background persisted simulated move: dice=${serverRes2.diceValue} newPosition=${serverRes2.newPosition}',
               name: 'GameController',
             );
 
@@ -1210,14 +1275,13 @@ class GameController extends ChangeNotifier {
   // ==========================================================
   // REFRESH FROM SERVER
   // ==========================================================
-  // Método público para forzar actualización después de animación
   Future<void> refreshAfterAnimation() async {
     await _refreshPlayersFromServer();
   }
-  
+
   Future<void> _refreshPlayersFromServer() async {
     if (game == null) return;
-    
+
     try {
       final fresh = await _gameService.getGame(game!.id);
 
@@ -1301,7 +1365,6 @@ class GameController extends ChangeNotifier {
         name: 'GameController',
       );
 
-      // Llamada REST al backend
       final res = await _moveService.answerProfesor(
         game!.id,
         questionId,
@@ -1310,8 +1373,7 @@ class GameController extends ChangeNotifier {
 
       lastMoveResult = res;
       lastMoveSimulated = false;
-      
-      // Setear lastMovePlayerId para que se anime
+
       try {
         final currentPlayer = game!.players.firstWhere((p) => p.isTurn);
         lastMovePlayerId = currentPlayer.id;
@@ -1319,13 +1381,11 @@ class GameController extends ChangeNotifier {
         lastMovePlayerId = null;
       }
 
-      // Retornar información del resultado INMEDIATAMENTE
       final result = {
         'success': true,
         'moveResult': res,
       };
 
-      // Recargar estado del juego SIN BLOQUEAR (fire and forget)
       loadGame(game!.id).catchError((e) {
         developer.log(
           'Background loadGame after profesor answer failed: $e',
@@ -1370,6 +1430,31 @@ class GameController extends ChangeNotifier {
   void setAnswering(bool v) {
     answering = v;
     notifyListeners();
+  }
+
+  // ==========================================================
+  // EMOTES: envío
+  // ==========================================================
+  Future<void> sendEmote(int emoteCode) async {
+    if (game == null) return;
+    final gid = int.tryParse(game!.id) ?? 0;
+    if (gid <= 0) return;
+
+    try {
+      if (_signalR.isConnected) {
+        await _signalR.invoke('SendEmote', args: [gid, emoteCode]);
+      } else {
+        developer.log(
+          'sendEmote: SignalR not connected',
+          name: 'GameController',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'sendEmote error: ${e.toString()}',
+        name: 'GameController',
+      );
+    }
   }
 
   // ==========================================================

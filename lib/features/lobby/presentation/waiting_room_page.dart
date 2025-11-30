@@ -220,7 +220,14 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            // 🔙 volver SIEMPRE al lobby
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/lobby',
+              (route) => false,
+            );
+          },
         ),
         title: const Text("Sala de espera"),
       ),
@@ -254,7 +261,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
   }
 
   // ------------------------------------------------------------
-  //  FONDO TIPO JUEGO (IGUAL ESTILO QUE LOGIN/LOBBY)
+  //  FONDO TIPO JUEGO
   // ------------------------------------------------------------
   Widget _buildBackground() {
     return Stack(
@@ -545,6 +552,24 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // 🔙 botón extra para volver al lobby
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/lobby',
+                    (route) => false,
+                  );
+                },
+                icon: const Icon(Icons.meeting_room_outlined),
+                label: const Text("Volver al lobby"),
+              ),
             ),
           ],
         ),

@@ -16,6 +16,9 @@ class LobbyController extends ChangeNotifier {
   /// Para indicar cuando el backend dice "ya estabas en esta sala"
   bool lastJoinAlreadyInRoom = false;
 
+  /// 🔐 Opcional: para saber si el código de una sala privada fue inválido
+  bool lastJoinInvalidCode = false;
+
   // ==============================================================
   // LOAD ROOMS
   // ==============================================================
@@ -53,18 +56,28 @@ class LobbyController extends ChangeNotifier {
   }
 
   // ==============================================================
-  // CREATE ROOM
+  // CREATE ROOM  (pública / privada)
   // ==============================================================
-  Future<RoomSummaryDto?> createRoom(String name, {int maxPlayers = 4}) async {
+  Future<RoomSummaryDto?> createRoom(
+    String name, {
+    int maxPlayers = 4,
+    bool isPrivate = false,
+    String? accessCode,
+  }) async {
     loading = true;
     error = null;
     notifyListeners();
 
     try {
-      final body = {
+      final body = <String, dynamic>{
         'name': name,
         'maxPlayers': maxPlayers,
+        'isPrivate': isPrivate,
       };
+
+      if (isPrivate && accessCode != null && accessCode.isNotEmpty) {
+        body['accessCode'] = accessCode;
+      }
 
       final data = await _api.postJson('/api/Lobby/rooms', body);
       final room = RoomSummaryDto.fromJson(Map<String, dynamic>.from(data));
@@ -82,15 +95,25 @@ class LobbyController extends ChangeNotifier {
   }
 
   // ==============================================================
-  // JOIN ROOM
+  // JOIN ROOM  (con código opcional para privadas)
   // ==============================================================
-  Future<bool> joinRoom(String roomId) async {
+  Future<bool> joinRoom(
+    String roomId, {
+    String? accessCode,
+  }) async {
     error = null;
     lastJoinAlreadyInRoom = false;
+    lastJoinInvalidCode = false;
     notifyListeners();
 
     try {
-      final body = {'roomId': roomId};
+      final body = <String, dynamic>{
+        'roomId': roomId, // el backend lo mapea a int
+      };
+
+      if (accessCode != null && accessCode.isNotEmpty) {
+        body['accessCode'] = accessCode;
+      }
 
       final data = await _api.postJson('/api/Lobby/rooms/join', body);
       final result = Map<String, dynamic>.from(data);
@@ -106,6 +129,11 @@ class LobbyController extends ChangeNotifier {
       if (msg.contains('already') || msg.contains('Already')) {
         lastJoinAlreadyInRoom = true;
         return true;
+      }
+
+      if (msg.contains('Invalid access code')) {
+        // mensaje que lanza el backend en RoomService
+        lastJoinInvalidCode = true;
       }
 
       error = msg;

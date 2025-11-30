@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/lobby_controller.dart';
 import '../../auth/presentation/logout_button.dart';
+import '../../../core/models/room_summary_dto.dart';
 
 class LobbyPage extends StatefulWidget {
   const LobbyPage({super.key});
@@ -270,14 +271,13 @@ class _LobbyPageState extends State<LobbyPage> {
 
           final currentPlayers = r.playerNames.length;
           final maxPlayers = r.maxPlayers;
-
           final bool isFull = currentPlayers >= maxPlayers;
 
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => Navigator.pushNamed(context, '/rooms/${r.id}'),
+              onTap: () => _handleRoomTap(context, ctrl, r),
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -302,12 +302,27 @@ class _LobbyPageState extends State<LobbyPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            r.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  r.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                r.isPrivate
+                                    ? Icons.lock_outline
+                                    : Icons.public_outlined,
+                                size: 16,
+                                color: Colors.grey[700],
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -337,7 +352,7 @@ class _LobbyPageState extends State<LobbyPage> {
                         children: [
                           Icon(
                             isFull
-                                ? Icons.lock_outline
+                                ? Icons.block
                                 : Icons.play_circle_outline,
                             size: 16,
                             color: isFull ? Colors.red : Colors.green[800],
@@ -399,78 +414,202 @@ class _LobbyPageState extends State<LobbyPage> {
     final nameCtrl = TextEditingController(
       text: 'Sala ${DateTime.now().millisecondsSinceEpoch % 1000}',
     );
+    final codeCtrl = TextEditingController();
 
     int maxPlayers = 4;
+    bool isPrivate = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Crear sala'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre de la sala',
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              title: const Text('Crear sala'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de la sala',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('Máximo de jugadores:'),
+                      const SizedBox(width: 12),
+                      DropdownButton<int>(
+                        value: maxPlayers,
+                        items: [2, 3, 4, 6]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: Text('$v'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setStateDialog(() {
+                              maxPlayers = v;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    title: const Text('Sala privada'),
+                    contentPadding: EdgeInsets.zero,
+                    value: isPrivate,
+                    onChanged: (val) {
+                      setStateDialog(() {
+                        isPrivate = val;
+                      });
+                    },
+                  ),
+                  if (isPrivate)
+                    TextField(
+                      controller: codeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Código de acceso',
+                      ),
+                      obscureText: true,
+                    ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text('Máximo de jugadores:'),
-                const SizedBox(width: 12),
-                DropdownButton<int>(
-                  value: maxPlayers,
-                  items: [2, 3, 4, 6]
-                      .map(
-                        (v) => DropdownMenuItem(
-                          value: v,
-                          child: Text('$v'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final name = nameCtrl.text.trim();
+                    final code = codeCtrl.text.trim();
+
+                    if (name.isEmpty) return;
+                    if (isPrivate && code.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('Ingresa un código para la sala privada'),
                         ),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) maxPlayers = v;
+                      );
+                      return;
+                    }
+
+                    Navigator.of(ctx).pop();
+
+                    final room = await ctrl.createRoom(
+                      name,
+                      maxPlayers: maxPlayers,
+                      isPrivate: isPrivate,
+                      accessCode: isPrivate ? code : null,
+                    );
+
+                    if (room == null) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No se pudo crear la sala'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (!mounted) return;
+                    Navigator.pushNamed(context, '/rooms/${room.id}');
                   },
+                  child: const Text('Crear'),
                 ),
               ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-
-              Navigator.of(ctx).pop();
-
-              final room =
-                  await ctrl.createRoom(name, maxPlayers: maxPlayers);
-
-              if (room == null) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No se pudo crear la sala'),
-                  ),
-                );
-                return;
-              }
-
-              if (!mounted) return;
-              Navigator.pushNamed(context, '/rooms/${room.id}');
-            },
-            child: const Text('Crear'),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
+  }
+
+  // ─────────────────────────────
+  //   TAP EN UNA SALA (JOIN + NAV)
+  // ─────────────────────────────
+  Future<void> _handleRoomTap(
+      BuildContext context, LobbyController ctrl, RoomSummaryDto room) async {
+    // Si la sala está llena, no hacemos nada
+    final currentPlayers = room.playerNames.length;
+    final maxPlayers = room.maxPlayers;
+    if (currentPlayers >= maxPlayers) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La sala está llena')),
+      );
+      return;
+    }
+
+    String? code;
+
+    if (room.isPrivate) {
+      final codeCtrl = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18)),
+            title: Text('Sala privada: ${room.name}'),
+            content: TextField(
+              controller: codeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Código de acceso',
+              ),
+              obscureText: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Unirse'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (ok != true) return;
+      code = codeCtrl.text.trim();
+      if (code.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Debes ingresar un código')),
+        );
+        return;
+      }
+    }
+
+    final success = await ctrl.joinRoom(room.id, accessCode: code);
+
+    if (!mounted) return;
+
+    if (!success) {
+      if (ctrl.lastJoinInvalidCode) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Código incorrecto para esta sala')),
+        );
+      } else if (ctrl.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ctrl.error!)),
+        );
+      }
+      return;
+    }
+
+    Navigator.pushNamed(context, '/rooms/${room.id}');
   }
 }

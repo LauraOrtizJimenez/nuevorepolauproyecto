@@ -1,5 +1,5 @@
 // -------------------------------------------------------------
-// GameBoardPage.dart  (VERSIÓN LIMPIA PARA DEMO + TEMÁTICA JUEGO)
+// GameBoardPage.dart  (VERSIÓN LIMPIA + EMOTES)
 // -------------------------------------------------------------
 
 import 'dart:developer' as developer;
@@ -27,6 +27,7 @@ class _GameBoardPageState extends State<GameBoardPage>
     with TickerProviderStateMixin {
   static const Color _baseGreen = Color(0xFF065A4B);
 
+  // Animación del dado (zoom)
   late final AnimationController _diceController =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
   late final Animation<double> _diceScale =
@@ -35,8 +36,9 @@ class _GameBoardPageState extends State<GameBoardPage>
   bool _showDice = false;
   int? _diceNumber;
   bool _diceRolling = false;
+  double _diceTilt = 0.0;
 
-  // Overlay (profesor/matón)
+  // Overlay (matón / profesor especial)
   bool _showSpecialOverlay = false;
   String? _specialMessage;
 
@@ -44,13 +46,17 @@ class _GameBoardPageState extends State<GameBoardPage>
   bool _waitingForPlayers = false;
   Timer? _aggressiveReloadTimer;
   int _aggressiveReloadAttempts = 0;
-  
+
   // Track if profesor dialog is currently showing
   bool _profesorDialogShowing = false;
   String? _lastShownQuestionId;
-  
-  // Track if we're animating dice (to prevent auto-reload)
-  bool _animatingDice = false;
+
+  // Tracking para detectar rendición de jugadores (IDs como String)
+  List<String> _lastPlayerIds = [];
+  Map<String, String> _lastPlayerNames = {};
+
+  // Tracking para mensaje de victoria
+  String? _lastGameStatus;
 
   @override
   void initState() {
@@ -74,6 +80,7 @@ class _GameBoardPageState extends State<GameBoardPage>
       }
     });
 
+    // Listener: detección de rendición + eventos especiales tipo "Matón"
     ctrl.addListener(_onControllerChanged);
 
     try {
@@ -139,8 +146,8 @@ class _GameBoardPageState extends State<GameBoardPage>
 
     // Si llega pregunta → mostrar dialogo (solo una vez por pregunta)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (ctrl.currentQuestion != null && 
-          !_profesorDialogShowing && 
+      if (ctrl.currentQuestion != null &&
+          !_profesorDialogShowing &&
           _lastShownQuestionId != ctrl.currentQuestion!.questionId) {
         _profesorDialogShowing = true;
         _lastShownQuestionId = ctrl.currentQuestion!.questionId;
@@ -182,7 +189,6 @@ class _GameBoardPageState extends State<GameBoardPage>
           const LogoutButton(),
         ],
       ),
-
       body: Stack(
         children: [
           _buildBackground(),
@@ -373,27 +379,30 @@ class _GameBoardPageState extends State<GameBoardPage>
                                           players: players,
                                           snakes: snakes,
                                           ladders: ladders,
+                                          // Animación del tablero
                                           animatePlayerId:
-                                              (ctrl.lastMoveResult?.diceValue ?? 0) > 0 
-                                                  ? ctrl.lastMovePlayerId 
+                                              (ctrl.lastMoveResult?.diceValue ?? 0) > 0
+                                                  ? ctrl.lastMovePlayerId
                                                   : null,
                                           animateSteps:
                                               (ctrl.lastMoveResult?.diceValue ?? 0) > 0
                                                   ? ctrl.lastMoveResult?.diceValue
                                                   : null,
                                           onAnimationComplete: () {
-                                            if (ctrl
-                                                .hasPendingSimulatedGame()) {
-                                              ctrl.applyPendingSimulatedGame();
-                                              ctrl.lastMoveSimulated = false;
-                                              ctrl.lastMovePlayerId = null;
-                                              ctrl.lastMoveResult = null;
-                                            } else if (ctrl.game != null) {
+                                            final c =
+                                                Provider.of<GameController>(
+                                                    context,
+                                                    listen: false);
+                                            if (c.hasPendingSimulatedGame()) {
+                                              c.applyPendingSimulatedGame();
+                                              c.lastMoveSimulated = false;
+                                              c.lastMovePlayerId = null;
+                                              c.lastMoveResult = null;
+                                            } else if (c.game != null) {
                                               Future.microtask(() =>
-                                                  ctrl.loadGame(
-                                                      ctrl.game!.id));
-                                              ctrl.lastMovePlayerId = null;
-                                              ctrl.lastMoveResult = null;
+                                                  c.loadGame(c.game!.id));
+                                              c.lastMovePlayerId = null;
+                                              c.lastMoveResult = null;
                                             }
                                           },
                                         ),
@@ -511,6 +520,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                             ),
                           );
 
+                          // ------------- COLUMNA DE ACCIONES + EMOTES -------------
                           Widget actionsColumn = Container(
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.25),
@@ -519,6 +529,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                             child: Padding(
                               padding: const EdgeInsets.all(10),
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   if (!ctrl.isMyTurn)
                                     Padding(
@@ -543,19 +554,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                                                 !ctrl.signalRAvailable) ||
                                             ctrl.forceEnableRoll)),
                                     loading: ctrl.waitingForMove,
-                                    onTap: () async {
-                                      final ok = await ctrl.roll();
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            ok
-                                                ? "Tirada realizada"
-                                                : "No se pudo realizar la tirada",
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    onTap: () => _handleRoll(ctrl),
                                   ),
                                   const SizedBox(height: 10),
                                   _buildGameButton(
@@ -566,9 +565,11 @@ class _GameBoardPageState extends State<GameBoardPage>
                                     onTap: () async {
                                       final ok = await ctrl.surrender();
                                       if (ok) {
+                                        if (!mounted) return;
                                         Navigator.pushReplacementNamed(
                                             context, "/lobby");
                                       } else {
+                                        if (!mounted) return;
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(
@@ -593,6 +594,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                                             ? null
                                             : () async {
                                                 await ctrl.loadGame(gameId);
+                                                if (!mounted) return;
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(
                                                   const SnackBar(
@@ -606,6 +608,33 @@ class _GameBoardPageState extends State<GameBoardPage>
                                       "Actualizar",
                                       style: TextStyle(fontSize: 12),
                                     ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Divider(
+                                    color: Colors.white.withOpacity(0.35),
+                                    height: 18,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // ---------- EMOTES UI ----------
+                                  const Text(
+                                    "Reacciones",
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      _buildEmoteButton(ctrl, 0),
+                                      _buildEmoteButton(ctrl, 1),
+                                      _buildEmoteButton(ctrl, 2),
+                                      _buildEmoteButton(ctrl, 3),
+                                      _buildEmoteButton(ctrl, 4),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -653,27 +682,88 @@ class _GameBoardPageState extends State<GameBoardPage>
                                   child: boardOverlay,
                                 ),
                                 const SizedBox(width: 12),
-                                SizedBox(width: 190, child: actionsColumn),
+                                SizedBox(width: 220, child: actionsColumn),
                               ],
                             );
                           }
 
-                          // Layout para pantallas pequeñas
+                          // ---------- LAYOUT PANTALLAS PEQUEÑAS ----------
                           return Column(
                             children: [
                               if (ctrl.loading) const LinearProgressIndicator(),
                               const SizedBox(height: 8),
+
+                              // Jugadores arriba
+                              SizedBox(
+                                height: 140,
+                                child: playersList,
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              // Tablero ocupa casi todo
                               Expanded(child: boardOverlay),
+
                               const SizedBox(height: 8),
-                              SizedBox(height: 150, child: playersList),
-                              const SizedBox(height: 8),
+
+                              // Botones + emotes abajo
                               actionsColumn,
                             ],
                           );
                         }),
 
                         // -------------------------
-                        // OVERLAY DEL DADO
+                        // OVERLAY DE EMOTES (MOSTRAR LO QUE LLEGA DEL HUB)
+                        // -------------------------
+                        if (ctrl.emotes.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: ctrl.emotes.map((e) {
+                                final emoji = _emoteEmoji(e.emoteCode);
+                                final from = e.fromUsername.isNotEmpty
+                                    ? e.fromUsername
+                                    : "Jugador";
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.65),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 0.7,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        emoji,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        from,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+
+                        // -------------------------
+                        // OVERLAY DEL DADO (DISEÑO BONITO + TILT)
                         // -------------------------
                         if (_showDice && _diceNumber != null)
                           Positioned.fill(
@@ -681,49 +771,47 @@ class _GameBoardPageState extends State<GameBoardPage>
                               child: ScaleTransition(
                                 scale: _diceScale,
                                 child: Container(
-                                  padding: const EdgeInsets.all(24),
+                                  padding: const EdgeInsets.all(26),
                                   decoration: BoxDecoration(
-                                    color: Colors.black87.withOpacity(0.9),
-                                    borderRadius: BorderRadius.circular(18),
+                                    color: Colors.black.withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(24),
                                     boxShadow: [
                                       BoxShadow(
-                                        color:
-                                            Colors.black.withOpacity(0.5),
-                                        blurRadius: 18,
-                                        offset: const Offset(0, 8),
+                                        color: Colors.black.withOpacity(0.6),
+                                        blurRadius: 24,
+                                        offset: const Offset(0, 10),
                                       ),
                                     ],
+                                    border: Border.all(
+                                      color: const Color(0xFF0DBA99)
+                                          .withOpacity(0.9),
+                                      width: 1.8,
+                                    ),
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Text(
                                         "Has sacado",
-                                        style:
-                                            TextStyle(color: Colors.white70),
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      CircleAvatar(
-                                        radius: 38,
-                                        backgroundColor:
-                                            const Color(0xFF0DBA99),
-                                        child: Container(
-                                          margin: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              "$_diceNumber",
-                                              style: const TextStyle(
-                                                fontSize: 30,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                          ),
+                                      const SizedBox(height: 12),
+                                      Transform.rotate(
+                                        angle: _diceTilt,
+                                        child: _buildPrettyDice(_diceNumber!),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        "$_diceNumber",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.2,
                                         ),
                                       ),
                                     ],
@@ -755,60 +843,6 @@ class _GameBoardPageState extends State<GameBoardPage>
                                         color: Colors.white70,
                                         fontSize: 18,
                                       ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Builder(
-                                      builder: (ctx) {
-                                        final c =
-                                            Provider.of<GameController>(ctx);
-                                        if (c.currentQuestion != null) {
-                                          final q = c.currentQuestion!;
-                                          return Column(
-                                            children: [
-                                              Text(
-                                                q.question,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 12),
-                                              ...q.options.map(
-                                                (opt) {
-                                                  final label =
-                                                      opt.trim().isEmpty
-                                                          ? "Opción"
-                                                          : opt;
-                                                  return Padding(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        vertical: 4),
-                                                    child: ElevatedButton(
-                                                      onPressed: c.answering
-                                                          ? null
-                                                          : () async {
-                                                              await _submitProfesorAnswer(
-                                                                  q.questionId,
-                                                                  opt,
-                                                                  ctx);
-                                                              c.clearCurrentQuestion();
-                                                              c.setAnswering(
-                                                                  false);
-                                                            },
-                                                      child: Text(label),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          );
-                                        }
-                                        return const SizedBox(
-                                          width: 36,
-                                          height: 36,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 3),
-                                        );
-                                      },
                                     ),
                                   ],
                                 ),
@@ -871,115 +905,519 @@ class _GameBoardPageState extends State<GameBoardPage>
   }
 
   // -------------------------------------------------------------
-  // ON CONTROLLER CHANGED — ANIMACIÓN DE DADO
+  // LISTENER DEL CONTROLLER — RENDICIÓN + EVENTOS ESPECIALES
   // -------------------------------------------------------------
-  void _onControllerChanged() async {
+  void _onControllerChanged() {
     final ctrl = Provider.of<GameController>(context, listen: false);
+    final game = ctrl.game;
+
+    // --- Detectar rendición por diferencia en la lista de jugadores ---
+    if (game != null) {
+      final currentIds = game.players
+          .map((p) => p.id?.toString())
+          .whereType<String>()
+          .toList();
+
+      if (_lastPlayerIds.isNotEmpty &&
+          currentIds.length < _lastPlayerIds.length) {
+        // Alguien salió
+        final removed = _lastPlayerIds
+            .where((id) => !currentIds.contains(id))
+            .toList();
+        if (removed.isNotEmpty) {
+          final removedId = removed.first;
+          final name = _lastPlayerNames[removedId] ?? "Un jugador";
+
+          final auth = Provider.of<AuthController>(context, listen: false);
+          final String? myId = auth.userId;
+
+          // Solo se muestra a los otros jugadores
+          if (myId == null || removedId != myId) {
+            final phrases = [
+              "$name tiró la toalla 🎓",
+              "$name decidió probar el año sabático 🧳",
+              "$name abandonó la materia a mitad de semestre 😵‍💫",
+            ];
+            final msg = phrases[Random().nextInt(phrases.length)];
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(msg),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }
+        }
+      }
+
+      // Actualizar snapshot de jugadores
+      _lastPlayerIds = currentIds;
+      _lastPlayerNames = {
+        for (final p in game.players)
+          if (p.id != null) p.id!.toString(): p.username,
+      };
+
+      // --- Mensaje de victoria / partida finalizada ---
+      if (game.status != null) {
+        final s = game.status!.toLowerCase();
+        if (_lastGameStatus != s) {
+          _lastGameStatus = s;
+          if (s.contains('final') ||
+              s.contains('finish') ||
+              s.contains('gan')) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("La partida ha terminado 🎉"),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          }
+        }
+      }
+    } else {
+      _lastPlayerIds = [];
+      _lastPlayerNames = {};
+    }
+
+    // --- Evento especial Matón (cuando llegue en lastMoveResult) ---
     final mr = ctrl.lastMoveResult;
     if (mr == null) return;
-    
-    // Si ya estamos animando, ignorar
-    if (_animatingDice) return;
 
-    final diceValue = mr.dice;
-    if (diceValue <= 0) return; // Solo animar dados válidos
-
-    int applied = (diceValue >= 1 && diceValue <= 6) ? diceValue : diceValue;
-    if (applied <= 0) applied = 1;
-    if (applied > 6) applied = ((applied % 6) == 0) ? 6 : (applied % 6);
-
-    _diceNumber = 1;
-    _animatingDice = true;
-
-    // Mostrar dado con animación
-    setState(() => _showDice = true);
-
-    await _playDiceRollAnimation(applied);
-
-    if (!mounted) return;
-    
-    // Mantener el dado visible por 800ms
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    if (!mounted) return;
-
-    setState(() => _showDice = false);
-
-    _animatingDice = false;
-
-    // AHORA actualizar el estado - esto activará la animación casilla por casilla en el GameBoardWidget
-    if (ctrl.hasPendingSimulatedGame()) {
-      ctrl.applyPendingSimulatedGame();
-      ctrl.lastMoveSimulated = false;
-    } else {
-      await ctrl.refreshAfterAnimation();
-    }
-    
-    if (!mounted) return;
-
-    // DESPUÉS de mover, mostrar overlay de Matón si aplica
     try {
-      final wasDiceRoll = mr.diceValue > 0;
-      
-      if (wasDiceRoll && mr.specialEvent == "Matón") {
+      if (mr.specialEvent == "Matón" && !_showSpecialOverlay) {
         final auth = Provider.of<AuthController>(context, listen: false);
-        final myUserId = auth.userId != null ? int.tryParse(auth.userId!) : null;
-        final isMyMove = (ctrl.lastMovePlayerId == myUserId);
-        
-        // Solo mostrar si encontramos el jugador
+        final myUserId = auth.userId;
+        final isMyMove =
+            (ctrl.lastMovePlayerId?.toString() == myUserId);
+
+        String message = "Un jugador ha sido ayudado por un matón!";
         if (ctrl.game != null && ctrl.lastMovePlayerId != null) {
           try {
             final player = ctrl.game!.players.firstWhere(
-              (p) => p.id == ctrl.lastMovePlayerId,
+              (p) => p.id?.toString() == ctrl.lastMovePlayerId.toString(),
             );
-            
             if (isMyMove) {
-              _specialMessage = "Te han ayudado, subes hasta la casilla ${mr.finalPosition}";
+              message =
+                  "Te han ayudado, subes hasta la casilla ${mr.finalPosition}";
             } else {
-              _specialMessage = "${player.username} ha sido ayudado por un matón!";
+              message = "${player.username} ha sido ayudado por un matón!";
             }
-            
-            setState(() => _showSpecialOverlay = true);
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted) setState(() => _showSpecialOverlay = false);
-            });
           } catch (_) {}
         }
+
+        setState(() {
+          _specialMessage = message;
+          _showSpecialOverlay = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() => _showSpecialOverlay = false);
+          }
+        });
       }
     } catch (_) {}
   }
 
   // -------------------------------------------------------------
-  // ANIMACIÓN REAL DEL DADO
+  // LÓGICA DEL BOTÓN "TIRAR DADO" + ANIMACIÓN
   // -------------------------------------------------------------
-  Future<void> _playDiceRollAnimation(int finalNumber) async {
-    if (_diceRolling) return;
+  Future<void> _handleRoll(GameController ctrl) async {
+    if (_diceRolling || _showDice) return;
+
     _diceRolling = true;
+    final random = Random();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      setState(() {
+        _showDice = true;
+        _diceNumber = random.nextInt(6) + 1;
+        _diceTilt = 0.0;
+      });
+    }
+
+    // 1) Animación local de números random (sin tocar backend todavía)
+    const spinTotalMs = 2000; // un poco más largo
+    const intervalMs = 80;
+    final iterations = spinTotalMs ~/ intervalMs;
+
+    for (int i = 0; i < iterations; i++) {
+      await Future.delayed(const Duration(milliseconds: intervalMs));
+      if (!mounted) return;
+      setState(() {
+        _diceNumber = random.nextInt(6) + 1;
+        _diceTilt = (random.nextDouble() - 0.5) * 0.5; // tilt leve
+      });
+    }
+
+    if (!mounted) {
+      _diceRolling = false;
+      return;
+    }
+
+    setState(() {
+      _diceTilt = 0.0;
+    });
+
+    // 2) AHORA llamamos al backend (ctrl.roll)
+    final ok = await ctrl.roll();
+
+    // 3) Obtenemos el número real del backend (si existe)
+    int finalNumber = _diceNumber ?? 1;
+    try {
+      final mr = ctrl.lastMoveResult;
+      if (mr != null) {
+        final diceVal = (mr.dice ?? mr.diceValue ?? 0);
+        if (diceVal > 0) {
+          finalNumber = diceVal;
+        }
+      }
+    } catch (_) {
+      // si falla, dejamos el random actual
+    }
+
+    if (!mounted) {
+      _diceRolling = false;
+      return;
+    }
+
+    setState(() => _diceNumber = finalNumber);
+
+    // 4) Animación de "pop" final con el número verdadero
+    _diceController.reset();
+    await _diceController.forward();
+    await Future.delayed(const Duration(milliseconds: 260));
+    await _diceController.reverse();
+
+    // 5) Lo dejamos un ratito visible
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) {
+      _diceRolling = false;
+      return;
+    }
+
+    // 6) Ocultamos dado
+    setState(() => _showDice = false);
+
+    // 7) Mensaje como antes
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(ok ? "Tirada realizada" : "No se pudo realizar la tirada"),
+        ),
+      );
+    }
+
+    _diceRolling = false;
+  }
+
+  // ------------------ DADO BONITO (PIPS 3x3) ------------------
+  Widget _buildPrettyDice(int value) {
+    final safeValue = value.clamp(1, 6);
+
+    return Container(
+      width: 110,
+      height: 110,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: const LinearGradient(
+          colors: [
+            Colors.white,
+            Color(0xFFF3FFF9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color(0xFF0DBA99).withOpacity(0.35),
+            blurRadius: 16,
+            spreadRadius: 1.2,
+          ),
+        ],
+        border: Border.all(
+          color: const Color(0xFF0DBA99),
+          width: 2.2,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: _buildDicePips(safeValue),
+      ),
+    );
+  }
+
+  Widget _buildDicePips(int value) {
+    final safeValue = value.clamp(1, 6);
+    final Set<int> active = <int>{};
+
+    switch (safeValue) {
+      case 1:
+        active.add(4);
+        break;
+      case 2:
+        active
+          ..add(0)
+          ..add(8);
+        break;
+      case 3:
+        active
+          ..add(0)
+          ..add(4)
+          ..add(8);
+        break;
+      case 4:
+        active..addAll([0, 2, 6, 8]);
+        break;
+      case 5:
+        active..addAll([0, 2, 4, 6, 8]);
+        break;
+      default: // 6
+        active..addAll([0, 2, 3, 5, 6, 8]);
+        break;
+    }
+
+    return GridView.builder(
+      itemCount: 9,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+      ),
+      itemBuilder: (_, index) {
+        final show = active.contains(index);
+        return Center(
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 120),
+            opacity: show ? 1 : 0,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: const Color(0xFF163430),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // -------------------------------------------------------------
+  // EMOTES HELPERS
+  // -------------------------------------------------------------
+  String _emoteEmoji(int code) {
+    switch (code) {
+      case 0:
+        return "🙂";
+      case 1:
+        return "😂";
+      case 2:
+        return "😡";
+      case 3:
+        return "😭";
+      case 4:
+        return "🤓";
+      default:
+        return "😶";
+    }
+  }
+
+  Widget _buildEmoteButton(GameController ctrl, int emoteCode) {
+    final emoji = _emoteEmoji(emoteCode);
+    // sólo deshabilitamos si no hay partida o está cargando
+    final disabled = (ctrl.game == null || ctrl.loading);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: disabled
+          ? null
+          : () async {
+              await ctrl.sendEmote(emoteCode);
+            },
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: disabled ? 0.4 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.25),
+              width: 0.7,
+            ),
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 18),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // DIÁLOGO DE PREGUNTA DEL PROFESOR
+  // -------------------------------------------------------------
+  Future<void> _showProfesorQuestionDialog(ProfesorQuestionDto question) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Pregunta del profesor"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Profesor ${question.profesor}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(question.question),
+              const SizedBox(height: 16),
+              ...question.options.asMap().entries.map((entry) {
+                final index = entry.key;
+                final opt = entry.value;
+                final letters = ['A', 'B', 'C', 'D'];
+                final letter =
+                    index < letters.length ? letters[index] : '${index + 1}';
+                final label =
+                    opt.trim().isEmpty ? "Opción $letter" : "$letter) $opt";
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                    onPressed: () async {
+                      Navigator.of(dialogContext).pop();
+
+                      final letterToSend =
+                          question.getLetterForValue(opt) ?? letter;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Enviando respuesta...'),
+                            ],
+                          ),
+                          duration: Duration(seconds: 10),
+                        ),
+                      );
+
+                      final result = await _submitProfesorAnswer(
+                          question.questionId, letterToSend, context);
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        await Future.delayed(
+                            const Duration(milliseconds: 300));
+                        if (mounted &&
+                            result != null &&
+                            result['message'] != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(result['message'] as String),
+                              backgroundColor: result['isCorrect'] == true
+                                  ? Colors.green
+                                  : Colors.red,
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: Text(label),
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // -------------------------------------------------------------
+  // ENVÍO DE RESPUESTA DEL PROFESOR
+  // -------------------------------------------------------------
+  Future<Map<String, dynamic>?> _submitProfesorAnswer(
+      String questionId, String answer, BuildContext ctx) async {
+    final ctrl = Provider.of<GameController>(context, listen: false);
 
     try {
-      final random = Random();
-      const totalDuration = 2000; // 2 segundos
-      const intervalMs = 80; // Cambiar número cada 80ms
-      final iterations = totalDuration ~/ intervalMs;
+      var res = await ctrl
+          .answerProfesor(questionId, answer)
+          .timeout(const Duration(seconds: 15));
 
-      // Mostrar números aleatorios durante 2 segundos
-      for (int i = 0; i < iterations; i++) {
-        await Future.delayed(const Duration(milliseconds: intervalMs));
-        if (!mounted) return;
-        setState(() => _diceNumber = random.nextInt(6) + 1);
+      if (!mounted) return null;
+
+      if (res == null || res['success'] != true) {
+        await _showErrorDialog(
+          ctx,
+          "Error al responder",
+          "No se pudo enviar la respuesta. Intenta nuevamente.",
+        );
+        return null;
       }
 
-      // Mostrar el número final con animación
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!mounted) return;
-      setState(() => _diceNumber = finalNumber);
+      final moveResult = res['moveResult'];
+      if (moveResult != null) {
+        final message = moveResult.message ?? 'Respuesta procesada';
+        final fromPos = moveResult.fromPosition ?? 0;
+        final finalPos = moveResult.finalPosition ?? 0;
 
-      _diceController.reset();
-      await _diceController.forward();
-      await Future.delayed(const Duration(milliseconds: 260));
-      await _diceController.reverse();
-    } finally {
-      _diceRolling = false;
+        final messageText = message.toLowerCase();
+        final isCorrect = messageText.contains('correcto') ||
+            messageText.contains('mantienes') ||
+            (fromPos == finalPos && !messageText.contains('incorrecto'));
+
+        return {
+          'message': message,
+          'isCorrect': isCorrect,
+          'fromPosition': fromPos,
+          'finalPosition': finalPos,
+        };
+      }
+
+      return {'message': 'Respuesta enviada', 'isCorrect': true};
+    } catch (e) {
+      developer.log(
+        "Error al enviar respuesta del profesor: $e",
+        name: "GameBoardPage",
+      );
+      if (!mounted) return null;
+      await _showErrorDialog(
+        ctx,
+        "Error al responder",
+        "Ocurrió un problema al enviar la respuesta. Intenta nuevamente.",
+      );
+      return null;
     }
   }
 
@@ -1012,164 +1450,6 @@ class _GameBoardPageState extends State<GameBoardPage>
         },
       );
     } catch (_) {}
-  }
-
-  // -------------------------------------------------------------
-  // DIÁLOGO DE PREGUNTA DEL PROFESOR
-  // -------------------------------------------------------------
-  Future<void> _showProfesorQuestionDialog(ProfesorQuestionDto question) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text("Pregunta del profesor"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Profesor ${question.profesor}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(question.question),
-              const SizedBox(height: 16),
-              ...question.options.asMap().entries.map((entry) {
-                final index = entry.key;
-                final opt = entry.value;
-                final letters = ['A', 'B', 'C', 'D'];
-                final letter = index < letters.length ? letters[index] : '${index + 1}';
-                final label = opt.trim().isEmpty ? "Opción $letter" : "$letter) $opt";
-                
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    onPressed: () async {
-                      // Cerrar diálogo INMEDIATAMENTE
-                      Navigator.of(dialogContext).pop();
-                      
-                      // Obtener la LETRA correspondiente al valor seleccionado
-                      final letterToSend = question.getLetterForValue(opt) ?? letter;
-                      
-                      // Mostrar loading en pantalla
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Text('Enviando respuesta...'),
-                            ],
-                          ),
-                          duration: Duration(seconds: 10),
-                        ),
-                      );
-                      
-                      // Enviar respuesta (SOLO LA LETRA: A, B, o C)
-                      final result = await _submitProfesorAnswer(
-                          question.questionId, letterToSend, context);
-                      
-                      // Cerrar loading y esperar un momento
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        
-                        // ESPERAR para que el diálogo termine de cerrar
-                        await Future.delayed(const Duration(milliseconds: 300));
-                        
-                        // Mostrar resultado EN EL TABLERO
-                        if (mounted && result != null && result['message'] != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(result['message'] as String),
-                              backgroundColor: result['isCorrect'] == true
-                                  ? Colors.green
-                                  : Colors.red,
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: Text(label),
-                  ),
-                );
-              }).toList(),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // -------------------------------------------------------------
-  // ENVÍO DE RESPUESTA DEL PROFESOR
-  // -------------------------------------------------------------
-  Future<Map<String, dynamic>?> _submitProfesorAnswer(
-      String questionId, String answer, BuildContext ctx) async {
-    final ctrl = Provider.of<GameController>(context, listen: false);
-
-    try {
-      // answerProfesor YA maneja answering=true/false internamente
-      var res = await ctrl
-          .answerProfesor(questionId, answer)
-          .timeout(const Duration(seconds: 15));
-
-      if (!mounted) return null;
-
-      if (res == null || res['success'] != true) {
-        await _showErrorDialog(
-          ctx,
-          "Error al responder",
-          "No se pudo enviar la respuesta. Intenta nuevamente.",
-        );
-        return null;
-      }
-
-      // Extraer información del resultado
-      final moveResult = res['moveResult'];
-      if (moveResult != null) {
-        final message = moveResult.message ?? 'Respuesta procesada';
-        final fromPos = moveResult.fromPosition ?? 0;
-        final finalPos = moveResult.finalPosition ?? 0;
-        
-        // Backend: "¡Correcto! Mantienes tu posición." o "Incorrecto. El profesor te hace bajar."
-        final messageText = message.toLowerCase();
-        final isCorrect = messageText.contains('correcto') || 
-                          messageText.contains('mantienes') ||
-                          (fromPos == finalPos && !messageText.contains('incorrecto'));
-        
-        return {
-          'message': message,
-          'isCorrect': isCorrect,
-          'fromPosition': fromPos,
-          'finalPosition': finalPos,
-        };
-      }
-
-      return {'message': 'Respuesta enviada', 'isCorrect': true};
-    } catch (e) {
-      developer.log(
-        "Error al enviar respuesta del profesor: $e",
-        name: "GameBoardPage",
-      );
-      if (!mounted) return null;
-      await _showErrorDialog(
-        ctx,
-        "Error al responder",
-        "Ocurrió un problema al enviar la respuesta. Intenta nuevamente.",
-      );
-      return null;
-    }
   }
 
   // ------------------ FONDO TEMÁTICO ------------------

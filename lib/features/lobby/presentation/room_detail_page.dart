@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/lobby_controller.dart';
 import '../../auth/presentation/logout_button.dart';
+import '../../../core/models/room_summary_dto.dart';
 
 class RoomDetailPage extends StatelessWidget {
   final String roomId;
@@ -162,26 +163,119 @@ class RoomDetailPage extends StatelessWidget {
                                 ),
                               ),
                               onPressed: () async {
-                                final ok = await ctrl.joinRoom(roomId);
-                                if (ok) {
-                                  // Si ya estabas en la sala no mostramos mensaje,
-                                  // solo te mandamos directo a la sala de espera.
-                                  if (!context.mounted) return;
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    '/rooms/$roomId/waiting',
-                                  );
-                                } else {
+                                // 1) Obtener info de la sala
+                                final RoomSummaryDto? room =
+                                    await ctrl.getRoomById(roomId);
+
+                                if (room == null) {
                                   if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    const SnackBar(
                                       content: Text(
-                                        ctrl.error ??
-                                            'No se pudo entrar a la sala',
-                                      ),
+                                          'No se pudo obtener la información de la sala'),
                                     ),
                                   );
+                                  return;
                                 }
+
+                                // 2) Sala llena
+                                final current = room.playerNames.length;
+                                final max = room.maxPlayers;
+                                if (current >= max) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('La sala está llena'),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                // 3) Si es privada, pedimos código
+                                String? code;
+                                if (room.isPrivate) {
+                                  final codeCtrl = TextEditingController();
+                                  final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) {
+                                      return AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        title: Text('Sala privada: ${room.name}'),
+                                        content: TextField(
+                                          controller: codeCtrl,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Código de acceso',
+                                          ),
+                                          obscureText: true,
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(ctx).pop(false),
+                                            child: const Text('Cancelar'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.of(ctx).pop(true),
+                                            child: const Text('Entrar'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+
+                                  if (ok != true) return;
+                                  code = codeCtrl.text.trim();
+
+                                  if (code.isEmpty) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Debes ingresar un código para entrar'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                // 4) Intentar unirse
+                                final ok = await ctrl.joinRoom(
+                                  roomId,
+                                  accessCode: code,
+                                );
+
+                                if (!context.mounted) return;
+
+                                if (!ok) {
+                                  if (ctrl.lastJoinInvalidCode) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Código incorrecto para esta sala'),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          ctrl.error ??
+                                              'No se pudo entrar a la sala',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                // 5) Navegar a la sala de espera
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/rooms/$roomId/waiting',
+                                );
                               },
                               child: const Text(
                                 'Entrar a la sala',
@@ -195,8 +289,15 @@ class RoomDetailPage extends StatelessWidget {
 
                           const SizedBox(height: 8),
 
+                          // Volver al lobby (siempre)
                           TextButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/lobby', // ruta de tu LobbyPage
+                                (route) => false,
+                              );
+                            },
                             child: const Text(
                               'Volver al lobby',
                               style: TextStyle(
