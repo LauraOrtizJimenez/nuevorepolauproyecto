@@ -717,45 +717,18 @@ class _GameBoardPageState extends State<GameBoardPage>
                         // -------------------------
                         if (ctrl.emotes.isNotEmpty)
                           Positioned(
-                            top: 8,
-                            right: 8,
+                            bottom: 50,
+                            right: 300,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
+                              verticalDirection: VerticalDirection.up,
                               children: ctrl.emotes.map((e) {
                                 final emoji = _emoteEmoji(e.emoteCode);
-                                final from = e.fromUsername.isNotEmpty
-                                    ? e.fromUsername
-                                    : "Jugador";
                                 return Container(
-                                  margin: const EdgeInsets.only(bottom: 4),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.65),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.2),
-                                      width: 0.7,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        emoji,
-                                        style: const TextStyle(fontSize: 18),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        from,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
+                                  margin: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    emoji,
+                                    style: const TextStyle(fontSize: 48),
                                   ),
                                 );
                               }).toList(),
@@ -1238,31 +1211,33 @@ class _GameBoardPageState extends State<GameBoardPage>
     // sólo deshabilitamos si no hay partida o está cargando
     final disabled = (ctrl.game == null || ctrl.loading);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: disabled
-          ? null
-          : () async {
-              await ctrl.sendEmote(emoteCode);
-            },
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 180),
-        opacity: disabled ? 0.4 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.25),
-              width: 0.7,
-            ),
-          ),
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 18),
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white.withOpacity(0.15),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+          side: BorderSide(
+            color: Colors.white.withOpacity(0.3),
+            width: 1,
           ),
         ),
+        elevation: 2,
+      ),
+      onPressed: disabled
+          ? null
+          : () async {
+              print('🔥 Botón emote presionado: $emoteCode');
+              
+              // Enviar al servidor
+              await ctrl.sendEmote(emoteCode);
+              
+              print('✅ Emote procesado');
+            },
+      child: Text(
+        emoji,
+        style: const TextStyle(fontSize: 22),
       ),
     );
   }

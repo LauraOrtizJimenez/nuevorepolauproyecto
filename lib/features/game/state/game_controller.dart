@@ -344,23 +344,62 @@ class GameController extends ChangeNotifier {
   // ==========================================================
   void _handleReceiveEmote(List<Object?>? args) {
     try {
-      if (args == null || args.isEmpty) return;
+      developer.log(
+        'ReceiveEmote: Recibido evento con args: $args',
+        name: 'GameController',
+      );
+      
+      if (args == null || args.isEmpty) {
+        developer.log('ReceiveEmote: args vacío', name: 'GameController');
+        return;
+      }
       final raw = args[0];
 
       if (raw is Map) {
-        final evt = EmoteEvent.fromJson(
-          Map<String, dynamic>.from(raw as Map),
+        // El backend envía: { GameId, EmoteId (string), UserId, Username, SentAt }
+        // Convertir a formato EmoteEvent
+        final payload = Map<String, dynamic>.from(raw as Map);
+        final Map<String, dynamic> emoteData = {
+          'gameId': payload['GameId'] ?? payload['gameId'] ?? '',
+          'fromPlayerId': payload['UserId'] ?? payload['userId'] ?? 0,
+          'fromUsername': payload['Username'] ?? payload['username'] ?? 'Jugador',
+          'emoteCode': int.tryParse(payload['EmoteId'] ?? payload['emoteId'] ?? '1') ?? 1,
+          'sentAt': payload['SentAt'] ?? payload['sentAt'] ?? DateTime.now().toIso8601String(),
+        };
+        
+        final evt = EmoteEvent.fromJson(emoteData);
+
+        developer.log(
+          'ReceiveEmote: Emote parseado - gameId: ${evt.gameId}, from: ${evt.fromUsername}, code: ${evt.emoteCode}, fromId: ${evt.fromPlayerId}',
+          name: 'GameController',
         );
 
         if (game != null && evt.gameId != game!.id.toString()) {
+          developer.log(
+            'ReceiveEmote: Ignorando emote de otro juego (${evt.gameId} != ${game!.id})',
+            name: 'GameController',
+          );
+          return;
+        }
+
+        // Ignorar si el emote es del propio usuario (ya lo mostramos localmente)
+        if (evt.fromPlayerId.toString() == _currentUserId?.toString()) {
+          developer.log(
+            'ReceiveEmote: Ignorando emote propio (ya mostrado localmente)',
+            name: 'GameController',
+          );
           return;
         }
 
         _emotes.add(evt);
+        developer.log(
+          'ReceiveEmote: Emote agregado a la lista (total: ${_emotes.length})',
+          name: 'GameController',
+        );
         notifyListeners();
 
-        // se borran solos después de unos segundos
-        Future.delayed(const Duration(seconds: 4), () {
+        // se borran solos después de 3 segundos
+        Future.delayed(const Duration(seconds: 3), () {
           _emotes.remove(evt);
           notifyListeners();
         });
@@ -1440,18 +1479,54 @@ class GameController extends ChangeNotifier {
     final gid = int.tryParse(game!.id) ?? 0;
     if (gid <= 0) return;
 
+    // SIEMPRE mostrar localmente de inmediato para feedback instantáneo
+    final localEmote = EmoteEvent(
+      gameId: game!.id,
+      fromPlayerId: _currentUserId ?? '',
+      fromUsername: _currentUsername ?? 'Tú',
+      emoteCode: emoteCode,
+      sentAt: DateTime.now(),
+    );
+    
+    _emotes.add(localEmote);
+    notifyListeners();
+    
+    developer.log(
+      'sendEmote: Emote mostrado localmente (${_emotes.length} total)',
+      name: 'GameController',
+    );
+    
+    // Remover después de 3 segundos
+    Future.delayed(const Duration(seconds: 3), () {
+      _emotes.remove(localEmote);
+      notifyListeners();
+    });
+
+    // También enviar al servidor para que lo vean los demás
     try {
       if (_signalR.isConnected) {
-        await _signalR.invoke('SendEmote', args: [gid, emoteCode]);
+        developer.log(
+          'sendEmote: Enviando emote $emoteCode para game $gid',
+          name: 'GameController',
+        );
+        
+        // El backend espera: SendEmote(int gameId, string emoteId)
+        // Convertir el emoteCode a string como espera el backend
+        await _signalR.invoke('SendEmote', args: [gid, emoteCode.toString()]);
+        
+        developer.log(
+          'sendEmote: Emote enviado exitosamente al servidor',
+          name: 'GameController',
+        );
       } else {
         developer.log(
-          'sendEmote: SignalR not connected',
+          'sendEmote: SignalR not connected, emote solo visible localmente',
           name: 'GameController',
         );
       }
     } catch (e) {
       developer.log(
-        'sendEmote error: ${e.toString()}',
+        'sendEmote: Error al enviar: ${e.toString()}',
         name: 'GameController',
       );
     }
