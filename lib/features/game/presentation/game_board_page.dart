@@ -356,7 +356,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                               ],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
                                   maxWidth: large
@@ -527,7 +527,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -636,6 +636,28 @@ class _GameBoardPageState extends State<GameBoardPage>
                                       _buildEmoteButton(ctrl, 4),
                                     ],
                                   ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "GIFs",
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      _buildEmoteButton(ctrl, 7),
+                                      _buildEmoteButton(ctrl, 8),
+                                      _buildEmoteButton(ctrl, 9),
+                                      _buildEmoteButton(ctrl, 10),
+                                      _buildEmoteButton(ctrl, 11),
+                                      // Agregar más botones GIF aquí: _buildEmoteButton(ctrl, 12), etc.
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -718,11 +740,32 @@ class _GameBoardPageState extends State<GameBoardPage>
                         if (ctrl.emotes.isNotEmpty)
                           Positioned(
                             bottom: 50,
-                            right: 300,
+                            right: 365,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               verticalDirection: VerticalDirection.up,
                               children: ctrl.emotes.map((e) {
+                                final isGif = _isGifEmote(e.emoteCode);
+                                
+                                if (isGif) {
+                                  final gifUrl = _emoteGifUrl(e.emoteCode);
+                                  if (gifUrl != null) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(top: 6),
+                                      width: 80,
+                                      height: 80,
+                                      child: Image.network(
+                                        gifUrl,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return const Text('❌', style: TextStyle(fontSize: 48));
+                                        },
+                                      ),
+                                    );
+                                  }
+                                }
+                                
+                                // Emoji Unicode normal
                                 final emoji = _emoteEmoji(e.emoteCode);
                                 return Container(
                                   margin: const EdgeInsets.only(top: 6),
@@ -1192,24 +1235,71 @@ class _GameBoardPageState extends State<GameBoardPage>
   String _emoteEmoji(int code) {
     switch (code) {
       case 0:
-        return "🙂";
+        return "🙀";
       case 1:
-        return "😂";
+        return "😿";
       case 2:
-        return "😡";
+        return "😹";
       case 3:
-        return "😭";
+        return "😾";
       case 4:
-        return "🤓";
+        return "😸";
       default:
         return "😶";
     }
   }
 
+  // Detectar si el código es un GIF (códigos 7+)
+  bool _isGifEmote(int code) {
+    return code >= 7;
+  }
+
+  // Obtener URL del GIF según el código
+  String? _emoteGifUrl(int code) {
+    switch (code) {
+      case 7:
+        return "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWNoMGM0ZWplbHp6NHJ2NzZ0dmZqNHhpeHEwcjhkdGFjZ29uemNpdyZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/zy6ts0cxT5l9PydjzM/giphy.gif";
+      case 8:
+        return "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMTR6emEyY3BtZndnZDBrNzFycjRkcWpnbW9xMWZqeWRxd2JhMnNqMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/9SolVg03SeKJMl18en/giphy.gif";
+      case 9:
+        return "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmJmYnUyaGgzYzV2MmE4bDl4Z3V2NHdyOXd6cXFobnRuNGU1MHpibyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/OtctZaDj6oUdpaHDra/giphy.gif";
+      case 10:
+        return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3g4eW9nMXR6MWsxMTE1d3JleDR0anVkMmxkajFsNnJwMjFkcjJweCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WobKKxW5i4M6hS8PxD/giphy.gif";
+      case 11:
+        return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExODZ1NHFqdDgzNnZkc3Fta3gwOHNhbW92MDh0MW10eG5qZ2k1M2V1eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/gQgCdTVivhNAzPPmGb/giphy.gif";
+      // Agregar más GIFs aquí con códigos 12, 13, etc.
+      default:
+        return null;
+    }
+  }
+
   Widget _buildEmoteButton(GameController ctrl, int emoteCode) {
-    final emoji = _emoteEmoji(emoteCode);
-    // sólo deshabilitamos si no hay partida o está cargando
+    final isGif = _isGifEmote(emoteCode);
     final disabled = (ctrl.game == null || ctrl.loading);
+
+    Widget buttonChild;
+    if (isGif) {
+      final gifUrl = _emoteGifUrl(emoteCode);
+      buttonChild = gifUrl != null
+          ? SizedBox(
+              width: 32,
+              height: 32,
+              child: Image.network(
+                gifUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Text('❌', style: TextStyle(fontSize: 18));
+                },
+              ),
+            )
+          : const Text('❌', style: TextStyle(fontSize: 18));
+    } else {
+      final emoji = _emoteEmoji(emoteCode);
+      buttonChild = Text(
+        emoji,
+        style: const TextStyle(fontSize: 22),
+      );
+    }
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -1229,16 +1319,10 @@ class _GameBoardPageState extends State<GameBoardPage>
           ? null
           : () async {
               print('🔥 Botón emote presionado: $emoteCode');
-              
-              // Enviar al servidor
               await ctrl.sendEmote(emoteCode);
-              
               print('✅ Emote procesado');
             },
-      child: Text(
-        emoji,
-        style: const TextStyle(fontSize: 22),
-      ),
+      child: buttonChild,
     );
   }
 
