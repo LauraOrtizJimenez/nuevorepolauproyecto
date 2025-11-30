@@ -11,12 +11,14 @@ class AuthController extends ChangeNotifier {
   String? _token;
   String? _username;
   String? _userId;
+  int _wins = 0;
   String? error;
 
   bool get loading => _loading;
   String? get token => _token;
   String? get username => _username;
   String? get userId => _userId;
+  int get wins => _wins;
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
 
   AuthController() {
@@ -28,6 +30,7 @@ class AuthController extends ChangeNotifier {
     _token = prefs.getString('token');
     _username = prefs.getString('username');
     _userId = prefs.getString('userId');
+    _wins = prefs.getInt('wins') ?? 0;
     notifyListeners();
   }
 
@@ -39,10 +42,12 @@ class AuthController extends ChangeNotifier {
       _token = dto.token;
       _username = dto.username;
       _userId = dto.userId;
+      _wins = dto.wins ?? 0;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token ?? '');
       await prefs.setString('username', _username ?? '');
       await prefs.setString('userId', _userId ?? '');
+      await prefs.setInt('wins', _wins);
       _loading = false; notifyListeners();
       return true;
     } catch (e) {
@@ -60,10 +65,12 @@ class AuthController extends ChangeNotifier {
       _token = dto.token;
       _username = dto.username;
       _userId = dto.userId;
+      _wins = dto.wins ?? 0;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token ?? '');
       await prefs.setString('username', _username ?? '');
       await prefs.setString('userId', _userId ?? '');
+      await prefs.setInt('wins', _wins);
       _loading = false; notifyListeners();
       return true;
     } catch (e) {
@@ -71,6 +78,13 @@ class AuthController extends ChangeNotifier {
       _loading = false; notifyListeners();
       return false;
     }
+  }
+
+  Future<void> incrementWins() async {
+    _wins += 1;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('wins', _wins);
+    notifyListeners();
   }
 
   Future<void> logout() async {

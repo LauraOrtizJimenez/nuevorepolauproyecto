@@ -52,10 +52,7 @@ class LogoutButton extends StatelessWidget {
   // ─────────────────────────────────────────────
   void _showProfileSheet(BuildContext context, AuthController auth) {
     final username = auth.username ?? "Jugador";
-
-    // TODO: cuando tengas este dato en backend, cámbialo aquí.
-    // Por ahora lo dejamos en 0 para no romper nada.
-    const int gamesWon = 0;
+    final int gamesWon = auth.wins;
 
     showModalBottomSheet(
       context: context,

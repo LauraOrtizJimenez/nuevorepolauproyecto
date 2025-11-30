@@ -14,6 +14,7 @@ import '../state/game_controller.dart';
 import 'game_board_widget.dart';
 import '../../auth/presentation/logout_button.dart';
 import '../../../core/models/profesor_question_dto.dart';
+import '../../../core/services/user_service.dart';
 
 class GameBoardPage extends StatefulWidget {
   final String gameId;
@@ -1083,12 +1084,17 @@ class _GameBoardPageState extends State<GameBoardPage>
 
     // 3) Obtenemos el número real del backend (si existe)
     int finalNumber = _diceNumber ?? 1;
+    bool playerWon = false;
     try {
       final mr = ctrl.lastMoveResult;
       if (mr != null) {
         final diceVal = (mr.dice ?? mr.diceValue ?? 0);
         if (diceVal > 0) {
           finalNumber = diceVal;
+        }
+        // Detectar victoria
+        if (mr.isWinner) {
+          playerWon = true;
         }
       }
     } catch (_) {
@@ -1118,8 +1124,28 @@ class _GameBoardPageState extends State<GameBoardPage>
     // 6) Ocultamos dado
     setState(() => _showDice = false);
 
-    // 7) Mensaje como antes
-    if (mounted) {
+    // 7) Si el jugador ganó, incrementar victorias
+    if (playerWon) {
+      final auth = Provider.of<AuthController>(context, listen: false);
+      try {
+        await auth.incrementWins();
+        final userService = UserService();
+        await userService.incrementWins();
+      } catch (e) {
+        developer.log('Error incrementando victorias: $e', name: 'GameBoardPage');
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("🎉 ¡Felicidades! Has ganado la partida 🏆"),
+            duration: Duration(seconds: 5),
+            backgroundColor: Color(0xFF0DBA99),
+          ),
+        );
+      }
+    } else if (mounted) {
+      // 8) Mensaje normal
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:

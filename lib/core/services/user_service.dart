@@ -24,6 +24,10 @@ class UserService {
     return [];
   }
 
+  Future<void> incrementWins() async {
+    await _client.postJson('/api/Users/me/increment-wins', {});
+  }
+
   Future<List<Map<String, dynamic>>> getMyGames() async {
     final resp = await _client.getJson('/api/Users/me/games');
     dynamic data;
