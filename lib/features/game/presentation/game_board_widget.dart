@@ -132,44 +132,57 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       aspectRatio: 1,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final minSide = constraints.maxWidth < constraints.maxHeight
+          final size = constraints.maxWidth < constraints.maxHeight
               ? constraints.maxWidth
               : constraints.maxHeight;
-          final tileSize = minSide / widget.size;
-          final boardPx = tileSize * widget.size;
+          
+          // Calcular tamaño del tablero interno
+          const framePadding = 24.0;
+          const borderPadding = 8.0;
+          const totalPadding = (framePadding + borderPadding) * 2;
+          
+          final boardSize = size - totalPadding;
+          final tileSize = boardSize / widget.size;
 
           return Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: constraints.maxWidth,
-                maxHeight: constraints.maxHeight,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFF4A2511),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: boardPx,
-                  height: boardPx,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.blue.shade50,
-                          Colors.green.shade50,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        // ---------------- GRID ----------------
-                        Column(
-                          children: List.generate(widget.size, (row) {
-                            final isReversed =
-                                (widget.size - 1 - row) % 2 == 1;
-                            return Expanded(
-                              child: Row(
-                                children: List.generate(widget.size, (col) {
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD2B48C),
+                  border: Border.all(
+                    color: const Color(0xFF8B6F47),
+                    width: 2,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      color: const Color(0xFFF5DEB3),
+                      child: Stack(
+                        children: [
+                            // ---------------- GRID ----------------
+                            Column(
+                              children: List.generate(widget.size, (row) {
+                                final isReversed =
+                                    (widget.size - 1 - row) % 2 == 1;
+                                return Expanded(
+                                  child: Row(
+                                    children: List.generate(widget.size, (col) {
                                   final visualCol = isReversed
                                       ? (widget.size - 1 - col)
                                       : col;
@@ -183,11 +196,12 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                     height: tileSize,
                                     decoration: BoxDecoration(
                                       border: Border.all(
-                                        color: Colors.black12,
+                                        color: const Color(0xFF8B6F47).withOpacity(0.3),
+                                        width: 0.5,
                                       ),
                                       color: isEven
-                                          ? Colors.white.withOpacity(0.85)
-                                          : Colors.blueGrey.withOpacity(0.06),
+                                          ? const Color(0xFFF5DEB3)
+                                          : const Color(0xFF8B4513),
                                     ),
                                     child: Stack(
                                       children: [
@@ -195,12 +209,23 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                         Positioned(
                                           left: 6,
                                           top: 6,
-                                          child: Text(
-                                            '$tileIndex',
-                                            style: TextStyle(
-                                              fontSize: (tileSize * 0.18)
-                                                  .clamp(10.0, 18.0),
-                                              color: Colors.black54,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(0.7),
+                                              borderRadius: BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              '$tileIndex',
+                                              style: TextStyle(
+                                                fontSize: (tileSize * 0.15)
+                                                    .clamp(9.0, 14.0),
+                                                color: const Color(0xFF4A2511),
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -272,105 +297,105 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                           }),
                         ),
 
-                        // ---------------- TOKENS FIJOS ----------------
-                        ...widget.players.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final player = entry.value;
-                          final center = _tileCenter(
-                            player.position,
-                            tileSize,
-                            widget.size,
-                          );
-                          final tokenSize = (tileSize * 0.36)
-                              .clamp(14.0, tileSize * 0.7);
-
-                          double left = center.dx - tokenSize / 2;
-                          double top = center.dy - tokenSize / 2;
-                          left = left.clamp(0.0, boardPx - tokenSize);
-                          top = top.clamp(0.0, boardPx - tokenSize);
-
-                          // Si estamos animando este jugador, NO dibujamos el token fijo.
-                          if (_isAnimating && _animPlayerIndex == idx) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return Positioned(
-                            left: left.toDouble(),
-                            top: top.toDouble(),
-                            width: tokenSize,
-                            height: tokenSize,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeInOut,
-                              child: Tooltip(
-                                message: player.username,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: _playerColor(idx).withOpacity(0.95),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    player.username.isNotEmpty
-                                        ? player.username[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: (tokenSize * 0.45)
-                                          .clamp(12.0, 18.0),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-
-                        // ---------------- TOKEN ANIMADO (OVERLAY) ----------------
-                        if (_isAnimating &&
-                            _animPlayerIndex >= 0 &&
-                            _animatedTileIndex > 0)
-                          Builder(
-                            builder: (ctx) {
-                              // si por alguna razón el índice se sale de rango
-                              if (_animPlayerIndex < 0 ||
-                                  _animPlayerIndex >=
-                                      widget.players.length) {
-                                return const SizedBox.shrink();
-                              }
-
-                              final overlayCenter = _tileCenter(
-                                _animatedTileIndex,
+                            // ---------------- TOKENS FIJOS ----------------
+                            ...widget.players.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final player = entry.value;
+                              final center = _tileCenter(
+                                player.position,
                                 tileSize,
                                 widget.size,
                               );
                               final tokenSize = (tileSize * 0.36)
                                   .clamp(14.0, tileSize * 0.7);
 
-                              double left =
-                                  overlayCenter.dx - tokenSize / 2;
-                              double top =
-                                  overlayCenter.dy - tokenSize / 2;
-                              left =
-                                  left.clamp(0.0, boardPx - tokenSize);
-                              top = top.clamp(0.0, boardPx - tokenSize);
+                              double left = center.dx - tokenSize / 2;
+                              double top = center.dy - tokenSize / 2;
+                              left = left.clamp(0.0, boardSize - tokenSize);
+                              top = top.clamp(0.0, boardSize - tokenSize);
 
-                              final player =
-                                  widget.players[_animPlayerIndex];
+                              // Si estamos animando este jugador, NO dibujamos el token fijo.
+                              if (_isAnimating && _animPlayerIndex == idx) {
+                                return const SizedBox.shrink();
+                              }
 
                               return Positioned(
+                                left: left.toDouble(),
+                                top: top.toDouble(),
+                                width: tokenSize,
+                                height: tokenSize,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeInOut,
+                                  child: Tooltip(
+                                    message: player.username,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _playerColor(idx).withOpacity(0.95),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 6,
+                                            offset: Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        player.username.isNotEmpty
+                                            ? player.username[0].toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: (tokenSize * 0.45)
+                                              .clamp(12.0, 18.0),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+
+                            // ---------------- TOKEN ANIMADO (OVERLAY) ----------------
+                            if (_isAnimating &&
+                                _animPlayerIndex >= 0 &&
+                                _animatedTileIndex > 0)
+                              Builder(
+                                builder: (ctx) {
+                                  // si por alguna razón el índice se sale de rango
+                                  if (_animPlayerIndex < 0 ||
+                                      _animPlayerIndex >=
+                                          widget.players.length) {
+                                    return const SizedBox.shrink();
+                                  }
+
+                                  final overlayCenter = _tileCenter(
+                                    _animatedTileIndex,
+                                    tileSize,
+                                    widget.size,
+                                  );
+                                  final tokenSize = (tileSize * 0.36)
+                                      .clamp(14.0, tileSize * 0.7);
+
+                                  double left =
+                                      overlayCenter.dx - tokenSize / 2;
+                                  double top =
+                                      overlayCenter.dy - tokenSize / 2;
+                                  left =
+                                      left.clamp(0.0, boardSize - tokenSize);
+                                  top = top.clamp(0.0, boardSize - tokenSize);
+
+                                  final player =
+                                      widget.players[_animPlayerIndex];
+
+                                  return Positioned(
                                 left: left,
                                 top: top,
                                 width: tokenSize,
@@ -415,36 +440,37 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                   ),
                                 ),
                               );
-                            },
-                          ),
+                                },
+                              ),
 
-                        // ---------------- LABELS ----------------
-                        const Positioned(
-                          left: 8,
-                          bottom: 8,
-                          child: Text(
-                            'Start: 1',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Text(
-                            'Finish: ${widget.size * widget.size}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+                            // ---------------- LABELS ----------------
+                            const Positioned(
+                              left: 8,
+                              bottom: 8,
+                              child: Text(
+                                'Start: 1',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            Positioned(
+                              right: 8,
+                              top: 8,
+                              child: Text(
+                                'Finish: ${widget.size * widget.size}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ], // Stack children
+                        ), // Stack
+                      ), // Container (fondo)
+                    ), // AspectRatio
+                  ), // ClipRRect
+                ), // Container (borde)
+              ), // Container (marco)
+            ); // Center
+        }, // builder
+      ), // LayoutBuilder
+    ); // AspectRatio
   }
 
   @override
