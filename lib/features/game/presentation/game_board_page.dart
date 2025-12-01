@@ -46,6 +46,7 @@ class _GameBoardPageState extends State<GameBoardPage>
   // Overlay (matón / profesor especial)
   bool _showSpecialOverlay = false;
   String? _specialMessage;
+  String? _lastMatonEventKey; // Para evitar mostrar el mismo evento de matón varias veces
 
   // Aggressive reload
   bool _waitingForPlayers = false;
@@ -859,17 +860,34 @@ class _GameBoardPageState extends State<GameBoardPage>
                         // -------------------------
                         if (_showSpecialOverlay && _specialMessage != null)
                           Positioned.fill(
-                            child: Center(
-                              child: Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: Colors.black87.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(18),
+                            child: Stack(
+                              children: [
+                                // Imagen de Jesús a la izquierda
+                                Positioned(
+                                  left: 350,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Center(
+                                    child: Image.asset(
+                                      'assets/jesus.png',
+                                      width: 150,
+                                      height: 150,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                  ),
                                 ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
+                                // Mensaje en el centro
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black87.withOpacity(0.9),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Text(
                                       _specialMessage!,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
@@ -877,9 +895,9 @@ class _GameBoardPageState extends State<GameBoardPage>
                                         fontSize: 18,
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                       ],
@@ -1015,43 +1033,55 @@ class _GameBoardPageState extends State<GameBoardPage>
       _lastPlayerNames = {};
     }
 
-    // --- Evento especial Matón (cuando llegue en lastMoveResult) ---
+    // --- Evento especial Matón (con delay para que aparezca después de la animación) ---
     final mr = ctrl.lastMoveResult;
-    if (mr == null) return;
-
-    try {
-      if (mr.specialEvent == "Matón" && !_showSpecialOverlay) {
-        final auth = Provider.of<AuthController>(context, listen: false);
-        final myUserId = auth.userId;
-        final isMyMove =
-            (ctrl.lastMovePlayerId?.toString() == myUserId);
-
+    if (mr != null && mr.specialEvent == "Matón") {
+      // Crear una clave única para este evento
+      final eventKey = "${ctrl.lastMovePlayerId}_${mr.finalPosition}_${mr.diceValue}";
+      
+      // Solo mostrar si no lo hemos mostrado ya
+      if (eventKey != _lastMatonEventKey && !_showSpecialOverlay) {
+        _lastMatonEventKey = eventKey;
+        
+        // *** IMPORTANTE: Capturar el USERNAME AHORA, antes del delay ***
         String message = "Un jugador ha sido ayudado por un matón!";
         if (ctrl.game != null && ctrl.lastMovePlayerId != null) {
-          try {
-            final player = ctrl.game!.players.firstWhere(
-              (p) => p.id?.toString() == ctrl.lastMovePlayerId.toString(),
-            );
-            if (isMyMove) {
-              message =
-                  "Te han ayudado, subes hasta la casilla ${mr.finalPosition}";
-            } else {
+          final playerId = ctrl.lastMovePlayerId.toString();
+          
+          // Buscar en la lista de jugadores AHORA
+          for (final player in ctrl.game!.players) {
+            if (player.id.toString() == playerId) {
               message = "${player.username} ha sido ayudado por un matón!";
+              developer.log('Matón: Username capturado = ${player.username}', name: 'GameBoardPage');
+              break;
             }
-          } catch (_) {}
-        }
-
-        setState(() {
-          _specialMessage = message;
-          _showSpecialOverlay = true;
-        });
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() => _showSpecialOverlay = false);
           }
+        }
+        
+        // Calcular delay: tiempo del dado + tiempo de animación del tablero
+        final diceValue = mr.diceValue ?? mr.dice ?? 1;
+        final diceTime = 3200; // Tiempo total de animación del dado
+        final boardAnimationTime = (diceValue * 250) + 300;
+        final totalDelay = diceTime + boardAnimationTime;
+        
+        // Esperar a que termine la animación antes de mostrar el mensaje
+        // PERO el mensaje ya tiene el username correcto capturado arriba
+        Future.delayed(Duration(milliseconds: totalDelay), () {
+          if (!mounted) return;
+
+          setState(() {
+            _specialMessage = message;
+            _showSpecialOverlay = true;
+          });
+          
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() => _showSpecialOverlay = false);
+            }
+          });
         });
       }
-    } catch (_) {}
+    }
   }
 
   // -------------------------------------------------------------
