@@ -18,6 +18,8 @@ class _RegisterPageState extends State<RegisterPage>
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
 
+  bool _obscurePassword = true;
+
   late AnimationController _fadeController;
   late Animation<double> _fadeIn;
 
@@ -245,11 +247,10 @@ class _RegisterPageState extends State<RegisterPage>
         ),
         const SizedBox(height: 10),
 
-        _buildInput(
+        _buildPasswordInput(
           controller: _passwordCtrl,
           icon: Icons.lock_outline,
           label: 'Contraseña',
-          obscure: true,
         ),
 
         const SizedBox(height: 20),
@@ -492,36 +493,116 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
+  Widget _buildPasswordInput({
+    required TextEditingController controller,
+    required IconData icon,
+    required String label,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: _obscurePassword,
+      style: GoogleFonts.pressStart2p(
+        fontSize: 10,
+        color: Colors.black87,
+        height: 1.5,
+      ),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: const Color(0xFF065A4B)),
+        labelText: label,
+        labelStyle: GoogleFonts.pressStart2p(
+          fontSize: 10,
+          color: Colors.black54,
+          height: 1.5,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+            color: const Color(0xFF065A4B),
+          ),
+          onPressed: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Color(0xFF065A4B), width: 1.6),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.grey, width: 0.8),
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
   Widget _buildGameButton({
     required String text,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return _HoverButton(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0DBA99), Color(0xFF0A7D66)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0A7D66).withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
+      text: text,
+    );
+  }
+}
+
+// ────────────────────────────────────────────────
+// HOVER BUTTON
+// ────────────────────────────────────────────────
+
+class _HoverButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final String text;
+
+  const _HoverButton({
+    required this.onTap,
+    required this.text,
+  });
+
+  @override
+  State<_HoverButton> createState() => _HoverButtonState();
+}
+
+class _HoverButtonState extends State<_HoverButton> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: _isHovering
+                  ? [const Color(0xFF065A4B), const Color(0xFF044234)] // Verde más oscuro
+                  : [const Color(0xFF0DBA99), const Color(0xFF0A7D66)], // Verde normal
             ),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            text,
-            style: GoogleFonts.pressStart2p(
-              fontSize: 11,
-              color: Colors.white,
-              letterSpacing: 0.5,
-              height: 1.5,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0A7D66).withOpacity(0.45),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              widget.text,
+              style: GoogleFonts.pressStart2p(
+                fontSize: 11,
+                color: Colors.white,
+                letterSpacing: 0.5,
+                height: 1.5,
+              ),
             ),
           ),
         ),
