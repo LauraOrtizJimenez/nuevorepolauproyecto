@@ -615,38 +615,10 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                             ),
 
                           // ---------------- LABELS ----------------
-                          const Positioned(
-                            left: 8,
-                            bottom: 8,
-                            child: Text(
-                              'Start: 1',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            top: 8,
-                            child: Text(
-                              'Finish: ${/*boardSize*/ ''}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            top: 8,
-                            child: Text(
-                              'Finish: ${0}', // se sobreescribe abajo
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            top: 8,
-                            child: Text(
-                              'Finish: ${widget.size * widget.size}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
+
+
+
+
                         ], // Stack children
                       ), // Stack
                     ), // Container (fondo)
