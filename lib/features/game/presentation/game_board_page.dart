@@ -14,6 +14,7 @@ import '../state/game_controller.dart';
 import 'game_board_widget.dart';
 import '../../auth/presentation/logout_button.dart';
 import '../../../core/models/profesor_question_dto.dart';
+import '../../../core/models/game_state_dto_clean.dart';
 import '../../../core/services/user_service.dart';
 
 class GameBoardPage extends StatefulWidget {
@@ -38,6 +39,9 @@ class _GameBoardPageState extends State<GameBoardPage>
   int? _diceNumber;
   bool _diceRolling = false;
   double _diceTilt = 0.0;
+  bool _allowBoardAnimation = true; // Controla si se puede animar el tablero
+  GameStateDto? _frozenGameState; // Estado congelado del juego mientras el dado está visible
+  String? _rollingPlayerId; // ID del jugador que está tirando (para congelar solo su vista)
 
   // Overlay (matón / profesor especial)
   bool _showSpecialOverlay = false;
@@ -155,12 +159,29 @@ class _GameBoardPageState extends State<GameBoardPage>
         final question = ctrl.currentQuestion!;
         // Limpiar INMEDIATAMENTE para evitar duplicados
         ctrl.clearCurrentQuestion();
+        
+        // Esperar a que termine TODO:
+        // 1. Animación del dado (2000ms random + tiempo backend + 700ms visible = ~3000ms)
+        // 2. Animación del movimiento en el tablero (250ms por paso)
+        final diceValue = ctrl.lastMoveResult?.diceValue ?? 0;
+        if (diceValue > 0) {
+          // Tiempo del dado: ~3200ms (animación + mostrar número)
+          final diceTime = 3200;
+          // Tiempo de animación del tablero: 250ms por paso + extra
+          final boardAnimationTime = (diceValue * 250) + 300;
+          final totalTime = diceTime + boardAnimationTime;
+          await Future.delayed(Duration(milliseconds: totalTime));
+        }
+        
         await _showProfesorQuestionDialog(question);
         _profesorDialogShowing = false;
       }
     });
 
-    final game = ctrl.game;
+    // Solo usar estado congelado si SOY YO quien está tirando el dado
+    final myPlayerId = ctrl.currentUserId;
+    final shouldFreeze = _frozenGameState != null && _rollingPlayerId == myPlayerId;
+    final game = shouldFreeze ? _frozenGameState : ctrl.game;
     final players = game?.players ?? [];
     final snakes = game?.snakes ?? [];
     final ladders = game?.ladders ?? [];
@@ -380,13 +401,13 @@ class _GameBoardPageState extends State<GameBoardPage>
                                           players: players,
                                           snakes: snakes,
                                           ladders: ladders,
-                                          // Animación del tablero
+                                          // Animación del tablero (solo si se permite)
                                           animatePlayerId:
-                                              (ctrl.lastMoveResult?.diceValue ?? 0) > 0
+                                              _allowBoardAnimation && (ctrl.lastMoveResult?.diceValue ?? 0) > 0
                                                   ? ctrl.lastMovePlayerId
                                                   : null,
                                           animateSteps:
-                                              (ctrl.lastMoveResult?.diceValue ?? 0) > 0
+                                              _allowBoardAnimation && (ctrl.lastMoveResult?.diceValue ?? 0) > 0
                                                   ? ctrl.lastMoveResult?.diceValue
                                                   : null,
                                           onAnimationComplete: () {
@@ -799,11 +820,6 @@ class _GameBoardPageState extends State<GameBoardPage>
                                         offset: const Offset(0, 10),
                                       ),
                                     ],
-                                    border: Border.all(
-                                      color: const Color(0xFF0DBA99)
-                                          .withOpacity(0.9),
-                                      width: 1.8,
-                                    ),
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -1053,11 +1069,14 @@ class _GameBoardPageState extends State<GameBoardPage>
         _showDice = true;
         _diceNumber = random.nextInt(6) + 1;
         _diceTilt = 0.0;
+        _rollingPlayerId = ctrl.currentUserId; // Guardar quién está tirando
+        _allowBoardAnimation = false; // Bloquear animación del tablero
+        _frozenGameState = ctrl.game; // CONGELAR el estado actual del juego SOLO PARA MÍ
       });
     }
 
     // 1) Animación local de números random (sin tocar backend todavía)
-    const spinTotalMs = 2000; // un poco más largo
+    const spinTotalMs = 2000;
     const intervalMs = 80;
     final iterations = spinTotalMs ~/ intervalMs;
 
@@ -1066,7 +1085,7 @@ class _GameBoardPageState extends State<GameBoardPage>
       if (!mounted) return;
       setState(() {
         _diceNumber = random.nextInt(6) + 1;
-        _diceTilt = (random.nextDouble() - 0.5) * 0.5; // tilt leve
+        _diceTilt = (random.nextDouble() - 0.5) * 0.5;
       });
     }
 
@@ -1079,10 +1098,10 @@ class _GameBoardPageState extends State<GameBoardPage>
       _diceTilt = 0.0;
     });
 
-    // 2) AHORA llamamos al backend (ctrl.roll)
+    // 2) Llamar al backend para obtener el número real del dado
     final ok = await ctrl.roll();
 
-    // 3) Obtenemos el número real del backend (si existe)
+    // 3) Obtener el número real del backend
     int finalNumber = _diceNumber ?? 1;
     bool playerWon = false;
     try {
@@ -1092,7 +1111,6 @@ class _GameBoardPageState extends State<GameBoardPage>
         if (diceVal > 0) {
           finalNumber = diceVal;
         }
-        // Detectar victoria
         if (mr.isWinner) {
           playerWon = true;
         }
@@ -1106,23 +1124,36 @@ class _GameBoardPageState extends State<GameBoardPage>
       return;
     }
 
+    // 4) Mostrar el número REAL del backend
     setState(() => _diceNumber = finalNumber);
 
-    // 4) Animación de "pop" final con el número verdadero
+    // 5) Animación de "pop" con el número CORRECTO
     _diceController.reset();
     await _diceController.forward();
     await Future.delayed(const Duration(milliseconds: 260));
     await _diceController.reverse();
 
-    // 5) Lo dejamos un ratito visible
+    // 6) Lo dejamos visible un ratito
     await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) {
       _diceRolling = false;
       return;
     }
 
-    // 6) Ocultamos dado
-    setState(() => _showDice = false);
+    // 7) Ocultamos dado y DESCONGELAMOS el estado
+    setState(() {
+      _showDice = false;
+      _frozenGameState = null; // DESCONGELAR - ahora el widget verá el estado actualizado
+      _rollingPlayerId = null; // Limpiar quién estaba tirando
+      _allowBoardAnimation = true; // Permitir animación
+    });
+    
+    // Pequeño delay para que se dispare la animación
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) {
+      _diceRolling = false;
+      return;
+    }
 
     // 7) Si el jugador ganó, incrementar victorias
     if (playerWon) {
@@ -1144,14 +1175,6 @@ class _GameBoardPageState extends State<GameBoardPage>
           ),
         );
       }
-    } else if (mounted) {
-      // 8) Mensaje normal
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(ok ? "Tirada realizada" : "No se pudo realizar la tirada"),
-        ),
-      );
     }
 
     _diceRolling = false;
@@ -1180,16 +1203,7 @@ class _GameBoardPageState extends State<GameBoardPage>
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
-          BoxShadow(
-            color: Color(0xFF0DBA99).withOpacity(0.35),
-            blurRadius: 16,
-            spreadRadius: 1.2,
-          ),
         ],
-        border: Border.all(
-          color: const Color(0xFF0DBA99),
-          width: 2.2,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -1356,24 +1370,248 @@ class _GameBoardPageState extends State<GameBoardPage>
   // DIÁLOGO DE PREGUNTA DEL PROFESOR
   // -------------------------------------------------------------
   Future<void> _showProfesorQuestionDialog(ProfesorQuestionDto question) async {
+    bool answered = false;
+    
+    // Timer de 12 segundos
+    final timer = Timer(const Duration(seconds: 12), () async {
+      if (!answered && mounted) {
+        answered = true;
+        // Cerrar el diálogo automáticamente
+        Navigator.of(context, rootNavigator: true).pop();
+        
+        // Enviar respuesta incorrecta (respuesta vacía o X)
+        await _submitProfesorAnswer(question.questionId, 'X', context);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⏰ Tiempo agotado - Retrocedes'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    });
+
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text("Pregunta del profesor"),
-          content: Column(
+        // Obtener imagen del profesor
+        String getProfesorImage(String nombre) {
+          final nombreLower = nombre.toLowerCase().trim();
+          return 'assets/profesores/$nombreLower.png';
+        }
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Profesor ${question.profesor}',
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(question.question),
-              const SizedBox(height: 16),
-              ...question.options.asMap().entries.map((entry) {
+              // Imagen del profesor - Más cerca de la pizarra
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    getProfesorImage(question.profesor),
+                    width: 280,
+                    height: 350,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Si no encuentra la imagen, muestra un placeholder
+                      return Container(
+                        width: 280,
+                        height: 350,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          size: 120,
+                          color: Colors.white54,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(width: 10), // Pequeño espacio entre profesor y pizarra
+              // Pizarra
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+              Container(
+                constraints: const BoxConstraints(maxWidth: 600),
+                decoration: BoxDecoration(
+                  // Marco de madera
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF8B4513),
+                      Color(0xFF654321),
+                      Color(0xFF8B4513),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.6),
+                      blurRadius: 30,
+                      offset: const Offset(0, 15),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    // Fondo verde de pizarra
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1B5E44),
+                        Color(0xFF0F4A36),
+                        Color(0xFF1B5E44),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                // Título con subrayado de tiza
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Pregunta del Profesor",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.95),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                            shadows: [
+                              Shadow(
+                                color: Colors.white.withOpacity(0.3),
+                                blurRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          height: 2,
+                          width: 180,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.7),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.2),
+                                blurRadius: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    TweenAnimationBuilder<int>(
+                      tween: IntTween(begin: 12, end: 0),
+                      duration: const Duration(seconds: 12),
+                      builder: (context, value, child) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: value <= 4 
+                                ? Colors.red.withOpacity(0.2)
+                                : Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: value <= 4 ? Colors.red : Colors.white.withOpacity(0.5),
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '⏱️ ${value}s',
+                            style: TextStyle(
+                              color: value <= 4 
+                                  ? const Color(0xFFFF6B6B)
+                                  : Colors.white.withOpacity(0.95),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 22,
+                              shadows: [
+                                Shadow(
+                                  color: value <= 4 ? Colors.red : Colors.white.withOpacity(0.3),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Nombre del profesor con estilo tiza
+                Text(
+                  'Profesor ${question.profesor}',
+                      style: TextStyle(
+                        color: const Color(0xFFFFF8DC), // Color tiza amarillo
+                        fontWeight: FontWeight.w500,
+                        fontSize: 18,
+                        letterSpacing: 0.5,
+                        shadows: [
+                          Shadow(
+                            color: const Color(0xFFFFF8DC).withOpacity(0.3),
+                            blurRadius: 3,
+                          ),
+                        ],
+                      ),
+                    ),
+                const SizedBox(height: 20),
+                // Pregunta con estilo escrito en tiza
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    question.question,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.95),
+                      fontSize: 17,
+                      height: 1.5,
+                      letterSpacing: 0.3,
+                      shadows: [
+                        Shadow(
+                          color: Colors.white.withOpacity(0.2),
+                          blurRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                      // Opciones
+                      ...question.options.asMap().entries.map((entry) {
                 final index = entry.key;
                 final opt = entry.value;
                 final letters = ['A', 'B', 'C', 'D'];
@@ -1383,69 +1621,211 @@ class _GameBoardPageState extends State<GameBoardPage>
                     opt.trim().isEmpty ? "Opción $letter" : "$letter) $opt";
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    onPressed: () async {
-                      Navigator.of(dialogContext).pop();
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () async {
+                        if (answered) return; // Ya se respondió
+                        answered = true;
+                        timer.cancel(); // Cancelar el timer
+                        
+                        Navigator.of(dialogContext).pop();
 
-                      final letterToSend =
-                          question.getLetterForValue(opt) ?? letter;
+                        final letterToSend =
+                            question.getLetterForValue(opt) ?? letter;
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text('Enviando respuesta...'),
+                              ],
+                            ),
+                            duration: Duration(seconds: 10),
+                          ),
+                        );
+
+                        final result = await _submitProfesorAnswer(
+                            question.questionId, letterToSend, context);
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          await Future.delayed(
+                              const Duration(milliseconds: 300));
+                          if (mounted &&
+                              result != null &&
+                              result['message'] != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(result['message'] as String),
+                                backgroundColor: result['isCorrect'] == true
+                                    ? Colors.green
+                                    : Colors.red,
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.4),
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // Círculo con letra estilo tiza
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.transparent,
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.8),
+                                  width: 2.5,
                                 ),
                               ),
-                              SizedBox(width: 12),
-                              Text('Enviando respuesta...'),
-                            ],
-                          ),
-                          duration: Duration(seconds: 10),
-                        ),
-                      );
-
-                      final result = await _submitProfesorAnswer(
-                          question.questionId, letterToSend, context);
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        await Future.delayed(
-                            const Duration(milliseconds: 300));
-                        if (mounted &&
-                            result != null &&
-                            result['message'] != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(result['message'] as String),
-                              backgroundColor: result['isCorrect'] == true
-                                  ? Colors.green
-                                  : Colors.red,
-                              duration: const Duration(seconds: 4),
+                              child: Center(
+                                child: Text(
+                                  letter,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.95),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.white.withOpacity(0.3),
+                                        blurRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          );
-                        }
-                      }
-                    },
-                    child: Text(label),
+                            const SizedBox(width: 16),
+                            // Texto de la opción con efecto tiza
+                            Expanded(
+                              child: Text(
+                                opt,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.95),
+                                  fontSize: 16,
+                                  letterSpacing: 0.3,
+                                  height: 1.3,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.white.withOpacity(0.2),
+                                      blurRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                );
-              }).toList(),
+                      );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
+            // Soporte inferior de madera
+            Container(
+              width: 620,
+              height: 35,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF8B4513),
+                    Color(0xFF654321),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Borrador
+                  Container(
+                    margin: const EdgeInsets.only(left: 40, top: 8),
+                    width: 50,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8DC),
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 3,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  // Tiza azul
+                  Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    width: 8,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4A9BDC),
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+                ],
+              ),
             ],
           ),
         );
       },
     );
+    
+    // Asegurarse de cancelar el timer cuando el diálogo se cierra
+    timer.cancel();
   }
 
   // -------------------------------------------------------------

@@ -1229,6 +1229,8 @@ class GameController extends ChangeNotifier {
     }
   }
 
+  String? get currentUserId => _currentUserId;
+
   String get currentTurnUsername {
     if (game == null) return '';
     try {

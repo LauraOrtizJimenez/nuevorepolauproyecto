@@ -55,9 +55,24 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       final playerFinalPos = widget.players[idx].position;
       final steps = max(1, widget.animateSteps!);
 
-      // Como ya recibimos al jugador en su posición FINAL,
-      // reconstruimos la posición inicial como (final - steps), mínimo 1.
-      _animStartPos = max(1, playerFinalPos - steps);
+      // Intentar obtener la posición anterior del jugador desde oldWidget
+      int oldPosition = max(1, playerFinalPos - steps); // fallback por defecto
+      
+      try {
+        if (oldWidget.players.isNotEmpty) {
+          final oldPlayerIndex = oldWidget.players.indexWhere(
+            (p) => p.id == widget.animatePlayerId
+          );
+          if (oldPlayerIndex >= 0) {
+            oldPosition = oldWidget.players[oldPlayerIndex].position;
+          }
+        }
+      } catch (_) {
+        // Si falla, usa el cálculo por defecto
+      }
+
+      // Usar la posición anterior real
+      _animStartPos = oldPosition;
       _animatedTileIndex = _animStartPos;
 
       _isAnimating = true;
@@ -128,25 +143,26 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Calcular dimensiones CONSIDERANDO TODO (padding + border)
+    const double fixedSize = 500.0;
+    const framePadding = 10.0;
+    const borderPadding = 4.0;
+    const borderWidth = 2.0;  // ¡EL BORDER TAMBIÉN OCUPA ESPACIO!
+    const totalPadding = (framePadding + borderPadding + borderWidth) * 2;
+    
+    final boardSize = fixedSize - totalPadding;
+    final tileSize = boardSize / widget.size;
+
     return AspectRatio(
       aspectRatio: 1,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = constraints.maxWidth < constraints.maxHeight
-              ? constraints.maxWidth
-              : constraints.maxHeight;
-          
-          // Calcular tamaño del tablero interno
-          const framePadding = 24.0;
-          const borderPadding = 8.0;
-          const totalPadding = (framePadding + borderPadding) * 2;
-          
-          final boardSize = size - totalPadding;
-          final tileSize = boardSize / widget.size;
-
-          return Center(
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: fixedSize,
+          height: fixedSize,
+          child: Center(
             child: Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(10),  // Reducido 2px
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color: const Color(0xFF4A2511),
@@ -159,7 +175,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                 ],
               ),
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(4),  // Reducido 2px
                 decoration: BoxDecoration(
                   color: const Color(0xFFD2B48C),
                   border: Border.all(
@@ -169,8 +185,9 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
-                  child: AspectRatio(
-                    aspectRatio: 1,
+                  child: SizedBox(
+                    width: boardSize,
+                    height: boardSize,
                     child: Container(
                       color: const Color(0xFFF5DEB3),
                       child: Stack(
@@ -237,15 +254,15 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.end,
                                             children: [
-                                              // Matones (antes snakes) - icono rojo
+                                              // Matones (antes snakes) - icono rojo con sombrero
                                               ...widget.snakes
                                                   .where((s) =>
                                                       s.headPosition ==
                                                       tileIndex)
                                                   .map(
                                                     (s) => Container(
-                                                      width: tileSize * 0.18,
-                                                      height: tileSize * 0.18,
+                                                      width: tileSize * 0.25,
+                                                      height: tileSize * 0.25,
                                                       decoration:
                                                           BoxDecoration(
                                                         color: Colors
@@ -255,21 +272,21 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                                                 .circular(6),
                                                       ),
                                                       child: const Icon(
-                                                        Icons.mood_bad,
-                                                        size: 14,
+                                                        Icons.school,
+                                                        size: 15,
                                                         color: Colors.white,
                                                       ),
                                                     ),
                                                   ),
-                                              // Profesores (antes ladders) - icono verde
+                                              // Profesores (antes ladders) - icono verde con dólar
                                               ...widget.ladders
                                                   .where((l) =>
                                                       l.bottomPosition ==
                                                       tileIndex)
                                                   .map(
                                                     (l) => Container(
-                                                      width: tileSize * 0.18,
-                                                      height: tileSize * 0.18,
+                                                      width: tileSize * 0.25,
+                                                      height: tileSize * 0.25,
                                                       decoration:
                                                           BoxDecoration(
                                                         color: Colors
@@ -279,8 +296,8 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                                                 .circular(6),
                                                       ),
                                                       child: const Icon(
-                                                        Icons.school,
-                                                        size: 14,
+                                                        Icons.attach_money,
+                                                        size: 15,
                                                         color: Colors.white,
                                                       ),
                                                     ),
@@ -442,35 +459,17 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                               );
                                 },
                               ),
-
-                            // ---------------- LABELS ----------------
-                            const Positioned(
-                              left: 8,
-                              bottom: 8,
-                              child: Text(
-                                'Start: 1',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Text(
-                                'Finish: ${widget.size * widget.size}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
                           ], // Stack children
                         ), // Stack
                       ), // Container (fondo)
-                    ), // AspectRatio
+                    ), // SizedBox (boardSize)
                   ), // ClipRRect
                 ), // Container (borde)
               ), // Container (marco)
-            ); // Center
-        }, // builder
-      ), // LayoutBuilder
-    ); // AspectRatio
+            ), // Center
+          ), // SizedBox (fixedSize)
+        ), // FittedBox
+      ); // AspectRatio
   }
 
   @override
