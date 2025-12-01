@@ -176,15 +176,6 @@ class RoomDetailPage extends StatelessWidget {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0DBA99),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                              ),
                               onPressed: () async {
                                 // 1) Obtener info de la sala
                                 final RoomSummaryDto? room =
@@ -232,20 +223,91 @@ class RoomDetailPage extends StatelessWidget {
                                           decoration: const InputDecoration(
                                             labelText: 'Código de acceso',
                                           ),
-                                          obscureText: true,
-                                        ),
-                                        actions: [
-                                          TextButton(
+                                        obscureText: true,
+                                      ),
+                                      actions: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.5),
+                                                offset: const Offset(0, 3),
+                                                blurRadius: 0,
+                                              ),
+                                            ],
+                                          ),
+                                          child: TextButton(
                                             onPressed: () =>
                                                 Navigator.of(ctx).pop(false),
-                                            child: const Text('Cancelar'),
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: Colors.grey[300],
+                                              foregroundColor: Colors.black87,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(6),
+                                                side: const BorderSide(
+                                                  color: Colors.grey,
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                            ),
+                                            child: Text(
+                                              'CANCELAR',
+                                              style: GoogleFonts.pressStart2p(
+                                                fontSize: 8,
+                                                shadows: [
+                                                  Shadow(
+                                                    color: Colors.black.withOpacity(0.3),
+                                                    offset: const Offset(1, 1),
+                                                    blurRadius: 0,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
-                                          ElevatedButton(
+                                        ),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.5),
+                                                offset: const Offset(0, 3),
+                                                blurRadius: 0,
+                                              ),
+                                            ],
+                                          ),
+                                          child: ElevatedButton(
                                             onPressed: () =>
                                                 Navigator.of(ctx).pop(true),
-                                            child: const Text('Entrar'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFF065A4B),
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(6),
+                                                side: const BorderSide(
+                                                  color: Color(0xFF044339),
+                                                  width: 3,
+                                                ),
+                                              ),
+                                              elevation: 0,
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                            ),
+                                            child: Text(
+                                              'ENTRAR',
+                                              style: GoogleFonts.pressStart2p(
+                                                fontSize: 8,
+                                                shadows: [
+                                                  Shadow(
+                                                    color: Colors.black.withOpacity(0.5),
+                                                    offset: const Offset(1, 1),
+                                                    blurRadius: 0,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
-                                        ],
+                                        ),
+                                      ],
                                       );
                                     },
                                   );
@@ -300,11 +362,31 @@ class RoomDetailPage extends StatelessWidget {
                                   '/rooms/$roomId/waiting',
                                 );
                               },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF065A4B),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: const BorderSide(
+                                    color: Color(0xFF044339),
+                                    width: 3,
+                                  ),
+                                ),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              ),
                               child: Text(
-                                'Entrar a la sala',
+                                'ENTRAR A LA SALA',
                                 style: GoogleFonts.pressStart2p(
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   height: 1.5,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.5),
+                                      offset: const Offset(1, 1),
+                                      blurRadius: 0,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -313,20 +395,49 @@ class RoomDetailPage extends StatelessWidget {
                           const SizedBox(height: 8),
 
                           // Volver al lobby (siempre)
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pushNamedAndRemoveUntil(
-                                context,
-                                '/lobby', // ruta de tu LobbyPage
-                                (route) => false,
-                              );
-                            },
-                            child: Text(
-                              'Volver al lobby',
-                              style: GoogleFonts.pressStart2p(
-                                fontSize: 8,
-                                color: _baseGreen,
-                                height: 1.5,
+                          Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.5),
+                                  offset: const Offset(0, 3),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.pushNamedAndRemoveUntil(
+                                  context,
+                                  '/lobby', // ruta de tu LobbyPage
+                                  (route) => false,
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: const Color(0xFF065A4B),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                  side: const BorderSide(
+                                    color: Color(0xFF065A4B),
+                                    width: 2,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              ),
+                              child: Text(
+                                'VOLVER AL LOBBY',
+                                style: GoogleFonts.pressStart2p(
+                                  fontSize: 8,
+                                  height: 1.5,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      offset: const Offset(1, 1),
+                                      blurRadius: 0,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

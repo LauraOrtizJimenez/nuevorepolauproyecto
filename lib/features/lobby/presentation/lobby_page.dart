@@ -263,43 +263,68 @@ class _LobbyPageState extends State<LobbyPage> {
             const SizedBox(width: 4),
 
             // 🔍 BOTÓN BUSCAR POR ID
-            ElevatedButton(
-              onPressed: () async {
-                final id = _searchCtrl.text.trim();
-                if (id.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Por favor ingresa un ID de sala'),
-                    ),
-                  );
-                  return;
-                }
-
-                final room = await ctrl.getRoomById(id);
-                if (room != null) {
-                  if (!mounted) return;
-                  Navigator.pushNamed(context, '/rooms/${room.id}');
-                } else {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No se encontró la sala'),
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF065A4B),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    offset: const Offset(0, 4),
+                    blurRadius: 0,
+                  ),
+                ],
               ),
-              child: Text(
-                'Buscar',
-                style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+              child: ElevatedButton(
+                onPressed: () async {
+                  final id = _searchCtrl.text.trim();
+                  if (id.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Por favor ingresa un ID de sala'),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final room = await ctrl.getRoomById(id);
+                  if (room != null) {
+                    if (!mounted) return;
+                    Navigator.pushNamed(context, '/rooms/${room.id}');
+                  } else {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No se encontró la sala'),
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF065A4B),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: const BorderSide(
+                      color: Color(0xFF044339),
+                      width: 3,
+                    ),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'BUSCAR',
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 9,
+                    height: 1.5,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(1, 1),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             )
           ],
@@ -473,26 +498,51 @@ class _LobbyPageState extends State<LobbyPage> {
   Widget _buildCreateButton(BuildContext context, LobbyController ctrl) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.add),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            'Crear sala',
-            style: GoogleFonts.pressStart2p(
-              fontSize: 12,
-              height: 1.5,
+      child: Container(
+        decoration: BoxDecoration(
+          // Sombra oscura inferior (efecto 3D pixelado)
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              offset: const Offset(0, 6),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.add, size: 20),
+          label: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              'CREAR SALA',
+              style: GoogleFonts.pressStart2p(
+                fontSize: 11,
+                height: 1.5,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.5),
+                    offset: const Offset(2, 2),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF065A4B),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF065A4B),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(
+                color: Color(0xFF044339),
+                width: 3,
+              ),
+            ),
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
           ),
-          elevation: 6,
+          onPressed: () => _showCreateDialog(context, ctrl),
         ),
-        onPressed: () => _showCreateDialog(context, ctrl),
       ),
     );
   }
@@ -590,54 +640,121 @@ class _LobbyPageState extends State<LobbyPage> {
                 ],
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(
-                    'Cancelar',
-                    style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(0, 3),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      foregroundColor: Colors.black87,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        side: const BorderSide(
+                          color: Colors.grey,
+                          width: 2,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: Text(
+                      'Cancelar',
+                      style: GoogleFonts.pressStart2p(
+                        fontSize: 9,
+                        height: 1.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.3),
+                            offset: const Offset(1, 1),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final name = nameCtrl.text.trim();
-                    final code = codeCtrl.text.trim();
+                Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(0, 4),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final name = nameCtrl.text.trim();
+                      final code = codeCtrl.text.trim();
 
-                    if (name.isEmpty) return;
-                    if (isPrivate && code.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content:
-                              Text('Ingresa un código para la sala privada'),
-                        ),
+                      if (name.isEmpty) return;
+                      if (isPrivate && code.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Ingresa un código para la sala privada'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      Navigator.of(ctx).pop();
+
+                      final room = await ctrl.createRoom(
+                        name,
+                        maxPlayers: maxPlayers,
+                        isPrivate: isPrivate,
+                        accessCode: isPrivate ? code : null,
                       );
-                      return;
-                    }
 
-                    Navigator.of(ctx).pop();
+                      if (room == null) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No se pudo crear la sala'),
+                          ),
+                        );
+                        return;
+                      }
 
-                    final room = await ctrl.createRoom(
-                      name,
-                      maxPlayers: maxPlayers,
-                      isPrivate: isPrivate,
-                      accessCode: isPrivate ? code : null,
-                    );
-
-                    if (room == null) {
                       if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No se pudo crear la sala'),
+                      Navigator.pushNamed(context, '/rooms/${room.id}');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF065A4B),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        side: const BorderSide(
+                          color: Color(0xFF044339),
+                          width: 3,
                         ),
-                      );
-                      return;
-                    }
-
-                    if (!mounted) return;
-                    Navigator.pushNamed(context, '/rooms/${room.id}');
-                  },
-                  child: Text(
-                    'Crear',
-                    style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                      ),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: Text(
+                      'CREAR',
+                      style: GoogleFonts.pressStart2p(
+                        fontSize: 9,
+                        height: 1.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.5),
+                            offset: const Offset(1, 1),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],

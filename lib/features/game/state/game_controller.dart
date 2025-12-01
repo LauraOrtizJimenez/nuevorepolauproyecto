@@ -58,6 +58,9 @@ class GameController extends ChangeNotifier {
   // ==========================================================
   // SURRENDER EVENT (para mostrar en UI)
   // ==========================================================
+  final List<Map<String, dynamic>> _surrenderEvents = [];
+  List<Map<String, dynamic>> get surrenderEvents => List.unmodifiable(_surrenderEvents);
+  
   String? lastSurrenderMessage;
   String? lastSurrenderUsername;
   String? lastSurrenderUserId;
@@ -614,8 +617,15 @@ class GameController extends ChangeNotifier {
 
             lastSurrenderUserId = surrenderedUserId;
             lastSurrenderUsername = surrenderedUsername;
-            lastSurrenderMessage =
-                message ?? '${surrenderedUsername ?? 'Un jugador'} se rindió 😢';
+            
+            // Mensajes aleatorios de rendición
+            final name = surrenderedUsername ?? 'Un jugador';
+            final random = Random();
+            final messages = [
+              "$name decidió tomar año sabático 🧳",
+              "$name abandonó la materia a mitad de semestre 😵‍💫",
+            ];
+            lastSurrenderMessage = message ?? messages[random.nextInt(messages.length)];
 
             lastSurrenderWasMe = (lastSurrenderUserId != null &&
                 _currentUserId != null &&
@@ -625,6 +635,26 @@ class GameController extends ChangeNotifier {
               'PlayerSurrendered parsed: userId=$lastSurrenderUserId username=$lastSurrenderUsername wasMe=$lastSurrenderWasMe',
               name: 'GameController',
             );
+
+            // Agregar a lista de eventos si no soy yo
+            if (!lastSurrenderWasMe) {
+              final surrenderEvent = {
+                'userId': surrenderedUserId,
+                'username': surrenderedUsername,
+                'message': lastSurrenderMessage,
+              };
+              _surrenderEvents.add(surrenderEvent);
+              developer.log(
+                'PlayerSurrendered: Evento agregado a lista (total: ${_surrenderEvents.length})',
+                name: 'GameController',
+              );
+              
+              // Auto-remover después de 4 segundos
+              Future.delayed(const Duration(seconds: 4), () {
+                _surrenderEvents.remove(surrenderEvent);
+                notifyListeners();
+              });
+            }
 
             notifyListeners();
 

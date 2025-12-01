@@ -823,6 +823,43 @@ class _GameBoardPageState extends State<GameBoardPage>
                           ),
 
                         // -------------------------
+                        // MENSAJES DE SURRENDER
+                        // -------------------------
+                        if (ctrl.surrenderEvents.isNotEmpty)
+                          ...ctrl.surrenderEvents.map((event) {
+                            final message = event['message'] ?? 'Un jugador se rindió';
+                            return Positioned(
+                              top: 20,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE57373),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    message,
+                                    style: GoogleFonts.pressStart2p(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+
+                        // -------------------------
                         // OVERLAY DEL DADO (DISEÑO BONITO + TILT)
                         // -------------------------
                         if (_showDice && _diceNumber != null)
@@ -1021,8 +1058,7 @@ class _GameBoardPageState extends State<GameBoardPage>
           // Solo se muestra a los otros jugadores
           if (myId == null || removedId != myId) {
             final phrases = [
-              "$name tiró la toalla 🎓",
-              "$name decidió probar el año sabático 🧳",
+              "$name decidió tomar un año sabático 🧳",
               "$name abandonó la materia a mitad de semestre 😵‍💫",
             ];
             final msg = phrases[Random().nextInt(phrases.length)];
@@ -1035,29 +1071,33 @@ class _GameBoardPageState extends State<GameBoardPage>
               );
             }
           }
+        }
+        
+        // VERIFICAR GANADOR POR RENDICIÓN (fuera del if anterior)
+        // Si después de la rendición queda solo 1 jugador activo -> ese jugador gana
+        final auth = Provider.of<AuthController>(context, listen: false);
+        final String? myId = auth.userId;
+        
+        if (currentIds.length == 1 && myId != null && currentIds.contains(myId.toString())) {
+          // Yo soy el único que queda, soy el ganador
+          _confettiController.play();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("🎉 ¡Felicidades! Has ganado por rendición del oponente 🏆"),
+                duration: Duration(seconds: 5),
+                backgroundColor: Color(0xFF0DBA99),
+              ),
+            );
+          }
 
-          // Si después de la rendición queda solo 1 jugador activo -> ese jugador gana
-          if (currentIds.length == 1 && myId != null && currentIds.contains(myId.toString())) {
-            // Yo soy el único que queda, soy el ganador
-            _confettiController.play();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("🎉 ¡Felicidades! Has ganado por rendición del oponente 🏆"),
-                  duration: Duration(seconds: 5),
-                  backgroundColor: Color(0xFF0DBA99),
-                ),
-              );
-            }
-
-            // Incrementar victorias
-            try {
-              await auth.incrementWins();
-              final userService = UserService();
-              await userService.incrementWins();
-            } catch (e) {
-              developer.log('Error incrementando victorias por rendición: $e', name: 'GameBoardPage');
-            }
+          // Incrementar victorias
+          try {
+            await auth.incrementWins();
+            final userService = UserService();
+            await userService.incrementWins();
+          } catch (e) {
+            developer.log('Error incrementando victorias por rendición: $e', name: 'GameBoardPage');
           }
         }
       }

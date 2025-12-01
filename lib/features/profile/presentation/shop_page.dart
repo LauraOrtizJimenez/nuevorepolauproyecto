@@ -59,6 +59,8 @@ class _ShopViewState extends State<_ShopView> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF065A4B),
+        foregroundColor: Colors.white,
         title: const Text('Tienda de skins'),
         centerTitle: true,
         leading: IconButton(
@@ -405,6 +407,10 @@ class _ShopViewState extends State<_ShopView> {
                           }
                         }
                       : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF065A4B),
+                    foregroundColor: Colors.white,
+                  ),
                   child: const Text('Comprar'),
                 ),
               )
@@ -533,11 +539,14 @@ class _ShopViewState extends State<_ShopView> {
     return Stack(
       children: [
         Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF065A4B), Color(0xFF044339)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage('assets/fondolobby.png'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.3),
+                BlendMode.darken,
+              ),
             ),
           ),
         ),
