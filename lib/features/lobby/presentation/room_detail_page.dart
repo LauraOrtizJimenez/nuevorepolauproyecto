@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../state/lobby_controller.dart';
 import '../../auth/presentation/logout_button.dart';
@@ -20,7 +22,10 @@ class RoomDetailPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Detalles de la sala'),
+        title: Text(
+          'Detalles de la sala',
+          style: GoogleFonts.pressStart2p(fontSize: 10),
+        ),
         actions: const [LogoutButton()],
       ),
       body: Stack(
@@ -68,18 +73,19 @@ class RoomDetailPage extends StatelessWidget {
                                   children: [
                                     Text(
                                       'Sala $roomId',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
+                                      style: GoogleFonts.pressStart2p(
+                                        fontSize: 12,
                                         color: _baseGreen,
+                                        height: 1.5,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    const Text(
+                                    Text(
                                       'Únete a esta sala para esperar a los demás jugadores y comenzar la partida.',
-                                      style: TextStyle(
-                                        fontSize: 12,
+                                      style: GoogleFonts.pressStart2p(
+                                        fontSize: 8,
                                         color: Colors.black54,
+                                        height: 1.5,
                                       ),
                                     ),
                                   ],
@@ -100,9 +106,10 @@ class RoomDetailPage extends StatelessWidget {
                               children: [
                                 Text(
                                   'ID de sala',
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: GoogleFonts.pressStart2p(
+                                    fontSize: 9,
                                     color: Colors.grey.shade600,
+                                    height: 1.5,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -121,26 +128,42 @@ class RoomDetailPage extends StatelessWidget {
                                     children: [
                                       Text(
                                         roomId,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
+                                        style: GoogleFonts.pressStart2p(
+                                          fontSize: 11,
                                           color: _baseGreen,
+                                          height: 1.5,
                                         ),
                                       ),
-                                      const Icon(
-                                        Icons.copy_rounded,
-                                        size: 18,
-                                        color: _baseGreen,
+                                      GestureDetector(
+                                        onTap: () {
+                                          Clipboard.setData(ClipboardData(text: roomId));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'ID de sala copiado: $roomId',
+                                                style: GoogleFonts.pressStart2p(fontSize: 8),
+                                              ),
+                                              duration: const Duration(seconds: 2),
+                                              backgroundColor: _baseGreen,
+                                            ),
+                                          );
+                                        },
+                                        child: const Icon(
+                                          Icons.copy_rounded,
+                                          size: 18,
+                                          color: _baseGreen,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                const Text(
+                                Text(
                                   'Comparte este ID si quieres que tus amigos entren a la misma sala.',
-                                  style: TextStyle(
-                                    fontSize: 11,
+                                  style: GoogleFonts.pressStart2p(
+                                    fontSize: 7,
                                     color: Colors.black54,
+                                    height: 1.5,
                                   ),
                                 ),
                               ],
@@ -277,11 +300,11 @@ class RoomDetailPage extends StatelessWidget {
                                   '/rooms/$roomId/waiting',
                                 );
                               },
-                              child: const Text(
+                              child: Text(
                                 'Entrar a la sala',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                style: GoogleFonts.pressStart2p(
+                                  fontSize: 10,
+                                  height: 1.5,
                                 ),
                               ),
                             ),
@@ -298,11 +321,12 @@ class RoomDetailPage extends StatelessWidget {
                                 (route) => false,
                               );
                             },
-                            child: const Text(
+                            child: Text(
                               'Volver al lobby',
-                              style: TextStyle(
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 8,
                                 color: _baseGreen,
-                                fontWeight: FontWeight.w500,
+                                height: 1.5,
                               ),
                             ),
                           ),
@@ -325,11 +349,14 @@ class RoomDetailPage extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF065A4B), Color(0xFF044339)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage('assets/fondolobby.png'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.3),
+                BlendMode.darken,
+              ),
             ),
           ),
         ),

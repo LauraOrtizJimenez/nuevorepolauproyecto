@@ -3,6 +3,7 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../state/lobby_controller.dart';
 import '../../../core/models/room_summary_dto.dart';
@@ -178,18 +179,21 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       } catch (_) {}
     }
 
-    // Contenedor con gradiente que envuelve TODO el Scaffold
+    // Contenedor con fondo fondolobby.png
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF065A4B), Color(0xFF044339)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: const AssetImage('assets/fondolobby.png'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.3),
+            BlendMode.darken,
+          ),
         ),
       ),
       child: Scaffold(
         backgroundColor: Colors
-            .transparent, // 👈 importante para que se vea el gradiente atrás
+            .transparent, // 👈 importante para que se vea el fondo atrás
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -204,9 +208,12 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
               );
             },
           ),
-          title: const Text(
+          title: Text(
             "Sala de espera",
-            style: TextStyle(color: Colors.white),
+            style: GoogleFonts.pressStart2p(
+              color: Colors.white,
+              fontSize: 12,
+            ),
           ),
           iconTheme: const IconThemeData(color: Colors.white),
           actions: [
@@ -369,18 +376,19 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                     children: [
                       Text(
                         "Sala ${room.id}",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF065A4B),
+                        style: GoogleFonts.pressStart2p(
+                          fontSize: 12,
+                          color: const Color(0xFF065A4B),
+                          height: 1.5,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         room.name,
-                        style: const TextStyle(
-                          fontSize: 13,
+                        style: GoogleFonts.pressStart2p(
+                          fontSize: 9,
                           color: Colors.black54,
+                          height: 1.5,
                         ),
                       ),
                     ],
@@ -423,10 +431,11 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
               alignment: Alignment.centerLeft,
               child: Text(
                 "Jugadores en la sala",
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
+                style: GoogleFonts.pressStart2p(
+                  fontSize: 10,
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -451,8 +460,20 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                         ),
                       ),
                     ),
-                    title: Text(name),
-                    subtitle: isMe ? const Text("Tú") : null,
+                    title: Text(
+                      name,
+                      style: GoogleFonts.pressStart2p(fontSize: 9, height: 1.5),
+                    ),
+                    subtitle: isMe
+                        ? Text(
+                            "Tú",
+                            style: GoogleFonts.pressStart2p(
+                              fontSize: 8,
+                              color: Colors.black54,
+                              height: 1.5,
+                            ),
+                          )
+                        : null,
                     trailing: isMe && isHost
                         ? Container(
                             padding: const EdgeInsets.symmetric(
@@ -462,12 +483,12 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                                   const Color(0xFF0DBA99).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: const Text(
+                            child: Text(
                               "Anfitrión",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF065A4B),
-                                fontWeight: FontWeight.w600,
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 8,
+                                color: const Color(0xFF065A4B),
+                                height: 1.5,
                               ),
                             ),
                           )
@@ -488,9 +509,10 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                     : (isHost
                         ? "Cuando haya al menos 2 jugadores, puedes iniciar la partida."
                         : "Espera a que el anfitrión cree la partida."),
-                style: const TextStyle(
-                  fontSize: 12,
+                style: GoogleFonts.pressStart2p(
+                  fontSize: 8,
                   color: Colors.black54,
+                  height: 1.5,
                 ),
               ),
             ),
@@ -503,7 +525,10 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                 OutlinedButton.icon(
                   onPressed: _loadRoomOnce,
                   icon: const Icon(Icons.refresh),
-                  label: const Text("Actualizar"),
+                  label: Text(
+                    "Actualizar",
+                    style: GoogleFonts.pressStart2p(fontSize: 8, height: 1.5),
+                  ),
                   style: OutlinedButton.styleFrom(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -559,9 +584,9 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                         : Text(
                             mainButtonText,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                            style: GoogleFonts.pressStart2p(
+                              fontSize: 10,
+                              height: 1.5,
                             ),
                           ),
                   ),

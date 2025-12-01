@@ -8,6 +8,8 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:confetti/confetti.dart';
 import '../../auth/state/auth_controller.dart';
 
 import '../state/game_controller.dart';
@@ -34,6 +36,10 @@ class _GameBoardPageState extends State<GameBoardPage>
       AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
   late final Animation<double> _diceScale =
       CurvedAnimation(parent: _diceController, curve: Curves.elasticOut);
+
+  // Confetti controller para la victoria
+  late final ConfettiController _confettiController =
+      ConfettiController(duration: const Duration(seconds: 5));
 
   bool _showDice = false;
   int? _diceNumber;
@@ -197,7 +203,10 @@ class _GameBoardPageState extends State<GameBoardPage>
           children: [
             const Icon(Icons.casino_rounded, size: 22),
             const SizedBox(width: 8),
-            const Text("Partida"),
+            Text(
+              "Partida",
+              style: GoogleFonts.pressStart2p(fontSize: 10),
+            ),
           ],
         ),
         actions: [
@@ -234,10 +243,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                           const Icon(Icons.signal_wifi_off,
                               color: Colors.brown),
                           const SizedBox(width: 8),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               "Problemas de conexión. Intentando mantener la partida activa.",
-                              style: TextStyle(fontSize: 12.5),
+                              style: GoogleFonts.pressStart2p(fontSize: 7, height: 1.5),
                             ),
                           ),
                           OutlinedButton.icon(
@@ -259,7 +268,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                               );
                             },
                             icon: const Icon(Icons.refresh, size: 18),
-                            label: const Text("Reintentar"),
+                            label: Text(
+                              "Reintentar",
+                              style: GoogleFonts.pressStart2p(fontSize: 7, height: 1.5),
+                            ),
                           ),
                         ],
                       ),
@@ -291,10 +303,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                           children: [
                             Text(
                               gameId.isNotEmpty ? "Partida $gameId" : "Partida",
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 10,
                                 color: Colors.white,
+                                height: 1.5,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -302,9 +314,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                               gameStatus.isNotEmpty
                                   ? "Estado: $gameStatus"
                                   : "Esperando actualización...",
-                              style: const TextStyle(
-                                fontSize: 11,
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 7,
                                 color: Colors.white70,
+                                height: 1.5,
                               ),
                             ),
                           ],
@@ -327,9 +340,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                               ctrl.currentTurnUsername.isNotEmpty
                                   ? "Turno: ${ctrl.currentTurnUsername}"
                                   : "Turno: —",
-                              style: const TextStyle(
-                                fontSize: 11,
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 8,
                                 color: Colors.white,
+                                height: 1.5,
                               ),
                             ),
                           ],
@@ -351,12 +365,13 @@ class _GameBoardPageState extends State<GameBoardPage>
                           final large = constraints.maxWidth >= 1000;
 
                           if (!ctrl.loading && ctrl.game == null) {
-                            return const Center(
+                            return Center(
                               child: Text(
                                 "No hay partida cargada",
-                                style: TextStyle(
+                                style: GoogleFonts.pressStart2p(
+                                  fontSize: 10,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                                  height: 1.5,
                                 ),
                               ),
                             );
@@ -382,7 +397,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
                                   maxWidth: large
-                                      ? constraints.maxWidth * 0.80
+                                      ? constraints.maxWidth * 0.50
                                       : constraints.maxWidth,
                                   maxHeight: constraints.maxHeight * 0.9,
                                 ),
@@ -450,15 +465,16 @@ class _GameBoardPageState extends State<GameBoardPage>
                                     Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(Icons.groups_rounded,
+                                      children: [
+                                        const Icon(Icons.groups_rounded,
                                             color: Colors.white70, size: 18),
-                                        SizedBox(width: 6),
+                                        const SizedBox(width: 6),
                                         Text(
                                           "Jugadores",
-                                          style: TextStyle(
+                                          style: GoogleFonts.pressStart2p(
+                                            fontSize: 9,
                                             color: Colors.white,
-                                            fontWeight: FontWeight.w600,
+                                            height: 1.5,
                                           ),
                                         ),
                                       ],
@@ -499,9 +515,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                                             Expanded(
                                               child: Text(
                                                 p.username,
-                                                style: const TextStyle(
+                                                style: GoogleFonts.pressStart2p(
                                                   color: Colors.white,
-                                                  fontSize: 13,
+                                                  fontSize: 8,
+                                                  height: 1.5,
                                                 ),
                                               ),
                                             ),
@@ -526,9 +543,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                                               ),
                                               child: Text(
                                                 "${p.position}",
-                                                style: const TextStyle(
+                                                style: GoogleFonts.pressStart2p(
                                                   color: Colors.white,
-                                                  fontSize: 11,
+                                                  fontSize: 8,
+                                                  height: 1.5,
                                                 ),
                                               ),
                                             ),
@@ -559,9 +577,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                                           vertical: 6),
                                       child: Text(
                                         "Turno de: ${ctrl.currentTurnUsername}",
-                                        style: const TextStyle(
+                                        style: GoogleFonts.pressStart2p(
                                           color: Colors.white70,
-                                          fontSize: 12,
+                                          fontSize: 8,
+                                          height: 1.5,
                                         ),
                                       ),
                                     ),
@@ -626,9 +645,12 @@ class _GameBoardPageState extends State<GameBoardPage>
                                                 );
                                               },
                                     icon: const Icon(Icons.refresh, size: 18),
-                                    label: const Text(
+                                    label: Text(
                                       "Actualizar",
-                                      style: TextStyle(fontSize: 12),
+                                      style: GoogleFonts.pressStart2p(
+                                        fontSize: 8,
+                                        height: 1.5,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -638,12 +660,12 @@ class _GameBoardPageState extends State<GameBoardPage>
                                   ),
                                   const SizedBox(height: 4),
                                   // ---------- EMOTES UI ----------
-                                  const Text(
+                                  Text(
                                     "Reacciones",
-                                    style: TextStyle(
+                                    style: GoogleFonts.pressStart2p(
                                       color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 8,
+                                      height: 1.5,
                                     ),
                                   ),
                                   const SizedBox(height: 6),
@@ -659,12 +681,12 @@ class _GameBoardPageState extends State<GameBoardPage>
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  const Text(
+                                  Text(
                                     "GIFs",
-                                    style: TextStyle(
+                                    style: GoogleFonts.pressStart2p(
                                       color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 8,
+                                      height: 1.5,
                                     ),
                                   ),
                                   const SizedBox(height: 6),
@@ -855,10 +877,41 @@ class _GameBoardPageState extends State<GameBoardPage>
                           ),
 
                         // -------------------------
+                        // CONFETTI DE VICTORIA
+                        // -------------------------
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: ConfettiWidget(
+                            confettiController: _confettiController,
+                            blastDirectionality: BlastDirectionality.explosive,
+                            shouldLoop: false,
+                            particleDrag: 0.03,
+                            emissionFrequency: 0.01,
+                            numberOfParticles: 50,
+                            gravity: 0.2,
+                            minBlastForce: 80,
+                            maxBlastForce: 120,
+                            colors: const [
+                              Colors.green,
+                              Colors.blue,
+                              Colors.pink,
+                              Colors.orange,
+                              Colors.purple,
+                              Colors.yellow,
+                              Colors.red,
+                              Colors.cyan,
+                            ],
+                          ),
+                        ),
+
+                        // -------------------------
                         // OVERLAY ESPECIAL (MATÓN / PROFESOR)
                         // -------------------------
                         if (_showSpecialOverlay && _specialMessage != null)
-                          Positioned.fill(
+                          Positioned(
+                            top: 80,
+                            left: 0,
+                            right: 0,
                             child: Center(
                               child: Container(
                                 padding: const EdgeInsets.all(20),
@@ -933,6 +986,7 @@ class _GameBoardPageState extends State<GameBoardPage>
       ctrl.stopPollingGame();
     } catch (_) {}
     _diceController.dispose();
+    _confettiController.dispose();
     _aggressiveReloadTimer?.cancel();
     super.dispose();
   }
@@ -940,14 +994,14 @@ class _GameBoardPageState extends State<GameBoardPage>
   // -------------------------------------------------------------
   // LISTENER DEL CONTROLLER — RENDICIÓN + EVENTOS ESPECIALES
   // -------------------------------------------------------------
-  void _onControllerChanged() {
+  void _onControllerChanged() async {
     final ctrl = Provider.of<GameController>(context, listen: false);
     final game = ctrl.game;
 
     // --- Detectar rendición por diferencia en la lista de jugadores ---
     if (game != null) {
       final currentIds = game.players
-          .map((p) => p.id?.toString())
+          .map((p) => p.id.toString())
           .whereType<String>()
           .toList();
 
@@ -979,6 +1033,30 @@ class _GameBoardPageState extends State<GameBoardPage>
                   duration: const Duration(seconds: 4),
                 ),
               );
+            }
+          }
+
+          // Si después de la rendición queda solo 1 jugador activo -> ese jugador gana
+          if (currentIds.length == 1 && myId != null && currentIds.contains(myId.toString())) {
+            // Yo soy el único que queda, soy el ganador
+            _confettiController.play();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("🎉 ¡Felicidades! Has ganado por rendición del oponente 🏆"),
+                  duration: Duration(seconds: 5),
+                  backgroundColor: Color(0xFF0DBA99),
+                ),
+              );
+            }
+
+            // Incrementar victorias
+            try {
+              await auth.incrementWins();
+              final userService = UserService();
+              await userService.incrementWins();
+            } catch (e) {
+              developer.log('Error incrementando victorias por rendición: $e', name: 'GameBoardPage');
             }
           }
         }
@@ -1165,6 +1243,9 @@ class _GameBoardPageState extends State<GameBoardPage>
       } catch (e) {
         developer.log('Error incrementando victorias: $e', name: 'GameBoardPage');
       }
+      
+      // Disparar confeti
+      _confettiController.play();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1922,11 +2003,14 @@ class _GameBoardPageState extends State<GameBoardPage>
     return Stack(
       children: [
         Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF065A4B), Color(0xFF044339)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage('assets/fondolobby.png'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.3),
+                BlendMode.darken,
+              ),
             ),
           ),
         ),
@@ -2016,11 +2100,10 @@ class _GameBoardPageState extends State<GameBoardPage>
                         const SizedBox(width: 8),
                         Text(
                           text,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                          style: GoogleFonts.pressStart2p(
+                            fontSize: 9,
                             color: Colors.white,
-                            letterSpacing: 0.3,
+                            height: 1.5,
                           ),
                         ),
                       ],
