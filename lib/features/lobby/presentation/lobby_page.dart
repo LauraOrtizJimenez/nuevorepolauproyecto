@@ -232,6 +232,28 @@ class _LobbyPageState extends State<LobbyPage> {
               ),
             ),
             const SizedBox(width: 8),
+
+            // 🔄 BOTÓN RECARGAR LISTA DE SALAS
+            IconButton(
+              tooltip: 'Recargar salas',
+              icon: const Icon(Icons.refresh),
+              onPressed: ctrl.loading
+                  ? null
+                  : () async {
+                      await ctrl.loadRooms();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Salas actualizadas'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+            ),
+
+            const SizedBox(width: 4),
+
+            // 🔍 BOTÓN BUSCAR POR ID
             ElevatedButton(
               onPressed: () async {
                 final id = _searchCtrl.text.trim();
