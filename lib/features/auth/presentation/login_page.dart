@@ -11,8 +11,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with TickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final TextEditingController _usernameCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
 
@@ -20,6 +19,8 @@ class _LoginPageState extends State<LoginPage>
   late Animation<double> _fadeIn;
 
   late AnimationController _bgController;
+  late AnimationController _pulseController;
+
   late List<_Particle> _particles;
 
   @override
@@ -37,20 +38,28 @@ class _LoginPageState extends State<LoginPage>
     );
     _fadeController.forward();
 
-    // Animación de fondo (partículas)
+    // Animación de fondo (rápida)
     _bgController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 25),
+      duration: const Duration(seconds: 14),
     )..repeat();
 
+    // Pulso del botón principal
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
+
     final rnd = Random();
-    _particles = List.generate(40, (i) {
+    _particles = List.generate(70, (i) {
       return _Particle(
-        x: rnd.nextDouble(), // 0..1
-        y: rnd.nextDouble(), // 0..1
-        radius: 2 + rnd.nextDouble() * 3,
-        speed: 0.2 + rnd.nextDouble() * 0.8, // velocidad vertical
-        opacity: 0.08 + rnd.nextDouble() * 0.12,
+        x: rnd.nextDouble(),
+        y: rnd.nextDouble(),
+        radius: 1.5 + rnd.nextDouble() * 3.5,
+        speed: 0.4 + rnd.nextDouble() * 1.1,
+        opacity: 0.05 + rnd.nextDouble() * 0.16,
       );
     });
   }
@@ -61,19 +70,19 @@ class _LoginPageState extends State<LoginPage>
     _passwordCtrl.dispose();
     _fadeController.dispose();
     _bgController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthController>(context);
-
     const Color baseGreen = Color(0xFF065A4B);
 
     return Scaffold(
       body: Stack(
         children: [
-          _buildAnimatedBackground(), // ⬅ partículas + íconos suaves
+          _buildAnimatedBackground(),
 
           FadeTransition(
             opacity: _fadeIn,
@@ -98,6 +107,10 @@ class _LoginPageState extends State<LoginPage>
                               offset: const Offset(0, 10),
                             ),
                           ],
+                          border: Border.all(
+                            width: 1.4,
+                            color: const Color(0xFF0DBA99).withOpacity(0.6),
+                          ),
                         ),
                         child: LayoutBuilder(
                           builder: (ctx, cardConstraints) {
@@ -116,7 +129,7 @@ class _LoginPageState extends State<LoginPage>
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const SizedBox(height: 16),
-                                      SizedBox(height: 200, child: profPanel),
+                                      SizedBox(height: 220, child: profPanel),
                                       const Divider(height: 1),
                                       Padding(
                                         padding: const EdgeInsets.symmetric(
@@ -142,7 +155,7 @@ class _LoginPageState extends State<LoginPage>
                                       Expanded(
                                         flex: 2,
                                         child: SizedBox(
-                                          height: 260,
+                                          height: 280,
                                           child: profPanel,
                                         ),
                                       ),
@@ -163,54 +176,125 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ────────────────────────────────────────────────
-  //               BACKGROUND ANIMADO
+  // BACKGROUND ANIMADO
   // ────────────────────────────────────────────────
 
   Widget _buildAnimatedBackground() {
-    return Stack(
-      children: [
-        // Partículas + gradiente
-        Positioned.fill(
-          child: CustomPaint(
-            painter: _ParticlesPainter(
-              particles: _particles,
-              animation: _bgController,
-            ),
-          ),
-        ),
+    return AnimatedBuilder(
+      animation: _bgController,
+      builder: (context, child) {
+        final t = _bgController.value;
+        // wobble rápido
+        final wobble = sin(t * 2 * pi * 3) * 0.08;
 
-        // Íconos suaves fijos (temática juego / universidad)
-        Positioned(
-          top: 70,
-          left: 40,
-          child: _softIcon(Icons.school_rounded, 80),
-        ),
-        Positioned(
-          top: 170,
-          left: 140,
-          child: _softIcon(Icons.groups_rounded, 70),
-        ),
-        Positioned(
-          bottom: 150,
-          right: 70,
-          child: _softIcon(Icons.emoji_events_rounded, 70),
-        ),
-        Positioned(
-          bottom: 70,
-          left: 110,
-          child: _softIcon(Icons.casino_rounded, 85),
-        ),
-        Positioned(
-          top: 260,
-          right: 90,
-          child: _softIcon(Icons.sentiment_very_dissatisfied_rounded, 75),
-        ),
-        Positioned(
-          top: 120,
-          right: 40,
-          child: _softIcon(Icons.menu_book_rounded, 60),
-        ),
-      ],
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _ParticlesPainter(
+                  particles: _particles,
+                  animation: _bgController,
+                ),
+              ),
+            ),
+
+            // Íconos grandes de fondo, todos con un poco de wobble
+            Positioned(
+              top: 70,
+              left: 40,
+              child: Transform.rotate(
+                angle: wobble,
+                child: _softIcon(Icons.school_rounded, 80),
+              ),
+            ),
+            Positioned(
+              top: 170,
+              left: 140,
+              child: Transform.rotate(
+                angle: -wobble * 0.9,
+                child: _softIcon(Icons.groups_rounded, 70),
+              ),
+            ),
+            Positioned(
+              bottom: 150,
+              right: 70,
+              child: Transform.rotate(
+                angle: wobble * 0.7,
+                child: _softIcon(Icons.emoji_events_rounded, 70),
+              ),
+            ),
+            Positioned(
+              bottom: 70,
+              left: 110,
+              child: Transform.rotate(
+                angle: -wobble,
+                child: _softIcon(Icons.casino_rounded, 85),
+              ),
+            ),
+            Positioned(
+              top: 260,
+              right: 90,
+              child: Transform.rotate(
+                angle: wobble * 0.5,
+                child: _softIcon(
+                  Icons.sentiment_very_dissatisfied_rounded,
+                  75,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 120,
+              right: 40,
+              child: Transform.rotate(
+                angle: -wobble * 0.4,
+                child: _softIcon(Icons.menu_book_rounded, 60),
+              ),
+            ),
+
+            // Extras gamer / quiz
+            Positioned(
+              bottom: 220,
+              left: 40,
+              child: Transform.rotate(
+                angle: wobble * 0.6,
+                child: _softIcon(Icons.flash_on_rounded, 55),
+              ),
+            ),
+            Positioned(
+              bottom: 200,
+              right: 150,
+              child: Transform.rotate(
+                angle: -wobble * 0.6,
+                child: _softIcon(Icons.sports_esports_rounded, 52),
+              ),
+            ),
+            Positioned(
+              top: 60,
+              right: 220,
+              child: Transform.rotate(
+                angle: wobble * 0.4,
+                child: _softIcon(Icons.leaderboard_rounded, 50),
+              ),
+            ),
+            Positioned(
+              bottom: 40,
+              right: 40,
+              child: Transform.rotate(
+                angle: -wobble * 0.5,
+                child: _softIcon(Icons.chat_bubble_rounded, 48),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              left: 220,
+              child: Transform.rotate(
+                angle: wobble * 0.3,
+                child: _softIcon(Icons.star_rounded, 42),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -218,12 +302,12 @@ class _LoginPageState extends State<LoginPage>
     return Icon(
       icon,
       size: size,
-      color: Colors.white.withOpacity(0.07),
+      color: Colors.white.withOpacity(0.1),
     );
   }
 
   // ────────────────────────────────────────────────
-  //                 SECCIÓN DEL FORM
+  // FORM
   // ────────────────────────────────────────────────
   Widget _buildFormSection({
     required BuildContext context,
@@ -234,20 +318,41 @@ class _LoginPageState extends State<LoginPage>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Etiqueta arriba tipo "modo juego"
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAFBF7),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Text(
+            '🎲 Juego de tablero universitario',
+            style: TextStyle(
+              fontSize: 11,
+              color: Color(0xFF0A7D66),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
         Text(
           'Profesores y Matones',
           style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
             color: baseGreen,
+            letterSpacing: 0.3,
           ),
         ),
         const SizedBox(height: 4),
         const Text(
-          'Inicia sesión para entrar a la partida.',
+          'Inicia sesión y reta a tus amigos.\n'
+          'Responde bien, esquiva a los profes y gana monedas. 🪙',
           style: TextStyle(
             fontSize: 13,
             color: Colors.black54,
+            height: 1.3,
           ),
         ),
         const SizedBox(height: 18),
@@ -266,46 +371,68 @@ class _LoginPageState extends State<LoginPage>
           obscure: true,
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            '🎮 Tip: usa el mismo usuario que en el juego',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
 
+        // Botón principal con pulso
         SizedBox(
           width: double.infinity,
           child: auth.loading
               ? const Center(child: CircularProgressIndicator())
-              : _buildGameButton(
-                  text: 'Ingresar',
-                  onTap: () async {
-                    final username = _usernameCtrl.text.trim();
-                    final password = _passwordCtrl.text;
-
-                    if (username.isEmpty || password.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Por favor ingresa usuario y contraseña.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    final ok = await auth.login(username, password);
-                    if (ok) {
-                      if (!mounted) return;
-                      Navigator.pushReplacementNamed(context, '/lobby');
-                    } else {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Credenciales incorrectas.'),
-                        ),
-                      );
-                    }
+              : AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    final pulse = 1.0 + 0.03 * sin(_pulseController.value * 2 * pi);
+                    return Transform.scale(
+                      scale: pulse,
+                      child: child,
+                    );
                   },
+                  child: _buildGameButton(
+                    text: '¡Entrar a la partida!',
+                    onTap: () async {
+                      final username = _usernameCtrl.text.trim();
+                      final password = _passwordCtrl.text.trim();
+
+                      if (username.isEmpty || password.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Por favor ingresa usuario y contraseña.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final ok = await auth.login(username, password);
+                      if (ok) {
+                        if (!mounted) return;
+                        Navigator.pushReplacementNamed(context, '/lobby');
+                      } else {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Credenciales incorrectas.'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
                 ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 15),
 
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -325,144 +452,200 @@ class _LoginPageState extends State<LoginPage>
               ),
             )
           ],
-        )
+        ),
       ],
     );
   }
 
   // ────────────────────────────────────────────────
-  //                 PANEL DEL PROFE
+  // PANEL PROFESOR
   // ────────────────────────────────────────────────
 
   Widget _buildProfesorPanel(Color baseGreen) {
-    return Container(
-      decoration: BoxDecoration(
-        color: baseGreen,
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-          topLeft: Radius.circular(24),
-        ),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF0A6C59),
-            Color(0xFF065A4B),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-          topLeft: Radius.circular(24),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // mini “ilustración” del juego
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.06),
-                  ),
-                ),
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF0DBA99), Color(0xFF0A7D66)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.school_rounded,
-                  size: 52,
-                  color: Colors.white,
-                ),
-                Positioned(
-                  bottom: 8,
-                  right: 18,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.95),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.casino_rounded,
-                      size: 18,
-                      color: Color(0xFF0A7D66),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 10,
-                  left: 14,
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.18),
-                    ),
-                    child: const Icon(
-                      Icons.sentiment_very_dissatisfied_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return AnimatedBuilder(
+      animation: _bgController,
+      builder: (context, child) {
+        final t = _bgController.value;
+        // Más rápido: frecuencia alta
+        final w = t * 2 * pi * 4.2;
+        final bob = sin(w) * 10; // subir / bajar
+        final tilt = sin(w) * 0.09; // inclinación más marcada
 
-            const SizedBox(height: 16),
-            const Text(
-              '¡El profe te espera!',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'Responde bien, esquiva a los profesores\n'
-                'y llega primero a la meta.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
+        return Transform.translate(
+          offset: Offset(0, bob),
+          child: Transform.rotate(
+            angle: tilt,
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: baseGreen,
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+            topLeft: Radius.circular(24),
+          ),
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF0A6C59),
+              Color(0xFF065A4B),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+            topLeft: Radius.circular(24),
+          ),
+          child: Stack(
+            children: [
+              // Badge de nivel arriba
+              Positioned(
+                top: 12,
+                right: 18,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.4),
+                      width: 0.7,
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star_rounded,
+                          size: 14, color: Colors.amberAccent),
+                      SizedBox(width: 3),
+                      Text(
+                        'Nivel Aula 1',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // mini “ilustración” del juego
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.08),
+                        ),
+                      ),
+                      Container(
+                        width: 104,
+                        height: 104,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [Color(0xFF0DBA99), Color(0xFF0A7D66)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.school_rounded,
+                        size: 60,
+                        color: Colors.white,
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 18,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.95),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.casino_rounded,
+                            size: 18,
+                            color: Color(0xFF0A7D66),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 10,
+                        left: 14,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.18),
+                          ),
+                          child: const Icon(
+                            Icons.sentiment_very_dissatisfied_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Text(
+                    '¡El profe te espera!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'Afila tu mente, lanza el dado\n'
+                      'y demuestra quién manda en clase.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ────────────────────────────────────────────────
-  //                    HELPERS
+  // HELPERS
   // ────────────────────────────────────────────────
 
   Widget _buildInput({
@@ -508,16 +691,16 @@ class _LoginPageState extends State<LoginPage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0A7D66).withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
+              color: const Color(0xFF0A7D66).withOpacity(0.45),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
-        child: const Center(
+        child: Center(
           child: Text(
-            'Ingresar',
-            style: TextStyle(
+            text,
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -531,12 +714,12 @@ class _LoginPageState extends State<LoginPage>
 }
 
 // ────────────────────────────────────────────────
-//         MODELO Y PAINTER PARA PARTÍCULAS
+// PARTICLES MODEL + PAINTER
 // ────────────────────────────────────────────────
 
 class _Particle {
-  final double x; // 0..1
-  final double y; // 0..1
+  final double x;
+  final double y;
   final double radius;
   final double speed;
   final double opacity;
@@ -561,11 +744,12 @@ class _ParticlesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Fondo con gradiente
     final rect = Offset.zero & size;
+
+    // Fondo con gradiente más vivo
     final bgPaint = Paint()
       ..shader = const LinearGradient(
-        colors: [Color(0xFF065A4B), Color(0xFF044339)],
+        colors: [Color(0xFF065A4B), Color(0xFF022C22)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(rect);
@@ -574,15 +758,38 @@ class _ParticlesPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
     final t = animation.value;
 
+    // Partículas pequeñas
     for (final p in particles) {
-      // Movimiento vertical + ligero movimiento horizontal sinusoidal
       final dy =
           (p.y * size.height + t * p.speed * size.height) % size.height;
-      final dx = p.x * size.width +
-          sin(t * 2 * pi * p.speed + p.x * 10) * 18;
+      final dx =
+          p.x * size.width + sin(t * 2 * pi * p.speed + p.x * 10) * 18;
 
-      paint.color = Colors.white.withOpacity(p.opacity);
+      paint
+        ..color = Colors.white.withOpacity(p.opacity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0);
       canvas.drawCircle(Offset(dx, dy), p.radius, paint);
+    }
+
+    // Glows grandes para dar efecto "bokeh gamer"
+    final glowPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withOpacity(0.06)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+
+    final glowCenters = [
+      Offset(size.width * 0.2, size.height * 0.25),
+      Offset(size.width * 0.8, size.height * 0.7),
+      Offset(size.width * 0.5, size.height * 0.9),
+    ];
+
+    for (int i = 0; i < glowCenters.length; i++) {
+      final offsetY = sin(t * 2 * pi * (0.8 + i * 0.3)) * 12;
+      canvas.drawCircle(
+        glowCenters[i] + Offset(0, offsetY),
+        80 + i * 12,
+        glowPaint,
+      );
     }
   }
 

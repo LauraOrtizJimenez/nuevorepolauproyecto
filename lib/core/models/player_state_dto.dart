@@ -4,11 +4,17 @@ class PlayerStateDto {
   final int position;
   final bool isTurn;
 
+  // 🎨 SKIN (opcionales)
+  final String? tokenColorKey;
+  final String? tokenIconKey;
+
   PlayerStateDto({
     required this.id,
     required this.username,
     required this.position,
     required this.isTurn,
+    this.tokenColorKey,
+    this.tokenIconKey,
   });
 
   factory PlayerStateDto.fromJson(Map<String, dynamic> json) {
@@ -48,11 +54,19 @@ class PlayerStateDto {
       positionVal = int.tryParse(posRaw) ?? 0;
     }
 
+    // 🎨 Leer claves de skin si el backend las manda
+    final String? colorKey =
+        (json['tokenColorKey'] ?? json['colorKey']) as String?;
+    final String? iconKey =
+        (json['tokenIconKey'] ?? json['iconKey']) as String?;
+
     return PlayerStateDto(
       id: idVal,
       username: usernameVal,
       position: positionVal,
       isTurn: parseBool(isTurnRaw),
+      tokenColorKey: colorKey,
+      tokenIconKey: iconKey,
     );
   }
 }

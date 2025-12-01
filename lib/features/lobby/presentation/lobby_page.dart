@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/lobby_controller.dart';
 import '../../auth/presentation/logout_button.dart';
 import '../../../core/models/room_summary_dto.dart';
+import '../../auth/state/auth_controller.dart';
 
 class LobbyPage extends StatefulWidget {
   const LobbyPage({super.key});
@@ -20,10 +21,16 @@ class _LobbyPageState extends State<LobbyPage> {
     super.initState();
     _searchCtrl = TextEditingController();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctrl = Provider.of<LobbyController>(context, listen: false);
-      ctrl.startPolling(intervalSeconds: 120);
-      ctrl.loadRooms();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final lobbyCtrl =
+          Provider.of<LobbyController>(context, listen: false);
+      lobbyCtrl.startPolling(intervalSeconds: 120);
+      lobbyCtrl.loadRooms();
+
+      // 👇 refrescamos perfil para traer coins reales del backend
+      final authCtrl =
+          Provider.of<AuthController>(context, listen: false);
+      await authCtrl.refreshProfile();
     });
   }
 
@@ -37,15 +44,14 @@ class _LobbyPageState extends State<LobbyPage> {
   @override
   Widget build(BuildContext context) {
     final ctrl = Provider.of<LobbyController>(context);
-    const Color baseGreen = Color(0xFF065A4B);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Salas'),
-        actions: const [LogoutButton()],
+        toolbarHeight: 0, // AppBar invisible (solo deja la status bar)
       ),
       body: Stack(
         children: [
@@ -55,7 +61,7 @@ class _LobbyPageState extends State<LobbyPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _buildHeaderRow(context, baseGreen, ctrl),
+                  _buildHeaderRow(context, ctrl),
                   const SizedBox(height: 16),
                   _buildSearchCard(context, ctrl),
                   const SizedBox(height: 16),
@@ -76,7 +82,7 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //        BACKGROUND
+  //  BACKGROUND
   // ─────────────────────────────
   Widget _buildBackground() {
     return Stack(
@@ -123,12 +129,16 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //        HEADER SUPERIOR
+  //  HEADER SUPERIOR
   // ─────────────────────────────
-  Widget _buildHeaderRow(
-      BuildContext context, Color baseGreen, LobbyController ctrl) {
+  Widget _buildHeaderRow(BuildContext context, LobbyController ctrl) {
+    final auth = Provider.of<AuthController>(context);
+    final coins = auth.coins;
+
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Texto "Lobby" + descripción
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,21 +160,56 @@ class _LobbyPageState extends State<LobbyPage> {
             ],
           ),
         ),
-        IconButton(
-          onPressed: () async {
-            await ctrl.loadRooms();
-            ctrl.startPolling(intervalSeconds: 120);
-          },
-          icon: const Icon(Icons.refresh),
-          color: Colors.white,
-          tooltip: 'Actualizar salas',
+
+        // 💰 pill de monedas
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.only(right: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.monetization_on,
+                size: 18,
+                color: Colors.yellow,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$coins',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
+
+        const SizedBox(width: 4),
+
+        // 🛒 botón tienda
+        IconButton(
+          tooltip: 'Tienda de skins',
+          icon: const Icon(Icons.storefront, color: Colors.white),
+          onPressed: () {
+            Navigator.pushNamed(context, '/shop');
+          },
+        ),
+
+        const SizedBox(width: 8),
+
+        // 👉 Solo dejamos el LogoutButton, que ya maneja avatar/nombre a su manera
+        const LogoutButton(),
+        const SizedBox(width: 4),
       ],
     );
   }
 
   // ─────────────────────────────
-  //        SEARCH CARD
+  //  SEARCH CARD
   // ─────────────────────────────
   Widget _buildSearchCard(BuildContext context, LobbyController ctrl) {
     return Card(
@@ -228,7 +273,7 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //       LISTA DE SALAS
+  //  LISTA DE SALAS
   // ─────────────────────────────
   Widget _buildRoomListCard(BuildContext context, LobbyController ctrl) {
     if (ctrl.rooms.isEmpty) {
@@ -381,7 +426,7 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //      BOTÓN CREAR SALA
+  //  BOTÓN CREAR SALA
   // ─────────────────────────────
   Widget _buildCreateButton(BuildContext context, LobbyController ctrl) {
     return SizedBox(
@@ -408,7 +453,7 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //        DIALOG CREAR SALA
+  //  DIALOG CREAR SALA
   // ─────────────────────────────
   void _showCreateDialog(BuildContext context, LobbyController ctrl) {
     final nameCtrl = TextEditingController(
@@ -425,8 +470,8 @@ class _LobbyPageState extends State<LobbyPage> {
         return StatefulBuilder(
           builder: (ctx, setStateDialog) {
             return AlertDialog(
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
               title: const Text('Crear sala'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -537,11 +582,10 @@ class _LobbyPageState extends State<LobbyPage> {
   }
 
   // ─────────────────────────────
-  //   TAP EN UNA SALA (JOIN + NAV)
+  //   TAP EN UNA SALA
   // ─────────────────────────────
   Future<void> _handleRoomTap(
       BuildContext context, LobbyController ctrl, RoomSummaryDto room) async {
-    // Si la sala está llena, no hacemos nada
     final currentPlayers = room.playerNames.length;
     final maxPlayers = room.maxPlayers;
     if (currentPlayers >= maxPlayers) {

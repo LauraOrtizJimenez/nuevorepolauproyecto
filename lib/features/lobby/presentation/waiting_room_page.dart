@@ -178,124 +178,130 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       } catch (_) {}
     }
 
-    // Si aún no hay datos, mostramos fondo+loader
-    if (room == null) {
-      return Scaffold(
-        body: Stack(
-          children: [
-            _buildBackground(),
-            const Center(child: CircularProgressIndicator()),
+    // Contenedor con gradiente que envuelve TODO el Scaffold
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF065A4B), Color(0xFF044339)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors
+            .transparent, // 👈 importante para que se vea el gradiente atrás
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              // 🔙 volver SIEMPRE al lobby
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/lobby',
+                (route) => false,
+              );
+            },
+          ),
+          title: const Text(
+            "Sala de espera",
+            style: TextStyle(color: Colors.white),
+          ),
+          iconTheme: const IconThemeData(color: Colors.white),
+          actions: [
+            // 💰 Coins + botón tienda
+            Consumer<AuthController>(
+              builder: (context, auth, _) {
+                final coins = auth.coins;
+                return Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.monetization_on,
+                            size: 18,
+                            color: Colors.yellow,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$coins',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tienda de skins',
+                      icon: const Icon(Icons.storefront, color: Colors.white),
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/shop');
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
-      );
-    }
-
-    final players = room.playerNames;
-    final maxPlayers = room.maxPlayers;
-    final myUsername = auth.username ?? "";
-
-    final bool isHost = players.isNotEmpty &&
-        players.first.trim().toLowerCase() ==
-            myUsername.trim().toLowerCase();
-
-    // ¿La sala ya tiene un juego creado?
-    final bool hasGame =
-        room.gameId != null && room.gameId!.trim().isNotEmpty;
-
-    // Texto del botón principal
-    final String mainButtonText = hasGame
-        ? "Entrar a la partida"
-        : (isHost
-            ? "Crear y entrar a la partida"
-            : "Esperando a que el anfitrión inicie");
-
-    // ¿Está habilitado el botón?
-    final bool canPressMainButton =
-        hasGame || (isHost && !_startingGame);
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // 🔙 volver SIEMPRE al lobby
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/lobby',
-              (route) => false,
-            );
-          },
-        ),
-        title: const Text("Sala de espera"),
-      ),
-      body: Stack(
-        children: [
-          _buildBackground(),
-          SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 600),
-                  child: _buildCardContent(
-                    context: context,
-                    room: room,
-                    players: players,
-                    maxPlayers: maxPlayers,
-                    myUsername: myUsername,
-                    isHost: isHost,
-                    hasGame: hasGame,
-                    mainButtonText: mainButtonText,
-                    canPressMainButton: canPressMainButton,
+        body: room == null
+            ? const Center(child: CircularProgressIndicator())
+            : Stack(
+                children: [
+                  // Íconos suaves de fondo
+                  Positioned(
+                    top: 60,
+                    left: 30,
+                    child: _softIcon(Icons.meeting_room_rounded, 70),
                   ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                  Positioned(
+                    top: 140,
+                    right: 60,
+                    child: _softIcon(Icons.groups_rounded, 70),
+                  ),
+                  Positioned(
+                    bottom: 80,
+                    left: 60,
+                    child: _softIcon(Icons.casino_rounded, 80),
+                  ),
+                  Positioned(
+                    bottom: 40,
+                    right: 80,
+                    child: _softIcon(Icons.timer_rounded, 70),
+                  ),
 
-  // ------------------------------------------------------------
-  //  FONDO TIPO JUEGO
-  // ------------------------------------------------------------
-  Widget _buildBackground() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF065A4B), Color(0xFF044339)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        Positioned(
-          top: 60,
-          left: 30,
-          child: _softIcon(Icons.meeting_room_rounded, 70),
-        ),
-        Positioned(
-          top: 140,
-          right: 60,
-          child: _softIcon(Icons.groups_rounded, 70),
-        ),
-        Positioned(
-          bottom: 80,
-          left: 60,
-          child: _softIcon(Icons.casino_rounded, 80),
-        ),
-        Positioned(
-          bottom: 40,
-          right: 80,
-          child: _softIcon(Icons.timer_rounded, 70),
-        ),
-      ],
+                  // Contenido principal
+                  SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 600),
+                          child: _buildCardContent(
+                            context: context,
+                            room: room,
+                            players: room.playerNames,
+                            maxPlayers: room.maxPlayers,
+                            myUsername: auth.username ?? "",
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -316,11 +322,22 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
     required List<String> players,
     required int maxPlayers,
     required String myUsername,
-    required bool isHost,
-    required bool hasGame,
-    required String mainButtonText,
-    required bool canPressMainButton,
   }) {
+    final bool isHost = players.isNotEmpty &&
+        players.first.trim().toLowerCase() ==
+            myUsername.trim().toLowerCase();
+
+    final bool hasGame =
+        room.gameId != null && room.gameId!.trim().isNotEmpty;
+
+    final String mainButtonText = hasGame
+        ? "Entrar a la partida"
+        : (isHost
+            ? "Crear y entrar a la partida"
+            : "Esperando a que el anfitrión inicie");
+
+    final bool canPressMainButton = hasGame || (isHost && !_startingGame);
+
     return Card(
       color: Colors.white.withOpacity(0.97),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -370,8 +387,8 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
                     color: Colors.green.withOpacity(0.12),
@@ -441,8 +458,8 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0DBA99)
-                                  .withOpacity(0.15),
+                              color:
+                                  const Color(0xFF0DBA99).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
@@ -508,7 +525,6 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                     onPressed: !_startingGame && canPressMainButton
                         ? () {
                             if (hasGame) {
-                              // Ya existe game → cualquier jugador entra al board
                               final gameId = room.gameId!;
                               Navigator.pushReplacement(
                                 context,
@@ -518,7 +534,6 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                                 ),
                               );
                             } else {
-                              // No existe game → sólo host crea
                               if (isHost) {
                                 _hostCreateAndEnterGame(room);
                               } else {

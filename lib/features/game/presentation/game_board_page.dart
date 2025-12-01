@@ -1,5 +1,5 @@
 // -------------------------------------------------------------
-// GameBoardPage.dart  (VERSIÓN LIMPIA + EMOTES)
+// GameBoardPage.dart  (VERSIÓN LIMPIA + EMOTES + COINS AL GANAR + SURRENDER)
 // -------------------------------------------------------------
 
 import 'dart:developer' as developer;
@@ -28,6 +28,9 @@ class GameBoardPage extends StatefulWidget {
 class _GameBoardPageState extends State<GameBoardPage>
     with TickerProviderStateMixin {
   static const Color _baseGreen = Color(0xFF065A4B);
+
+  // 👇 Ajusta este valor al premio de coins que maneje tu backend
+  static const int _coinsRewardOnWin = 20;
 
   // Animación del dado (zoom)
   late final AnimationController _diceController =
@@ -63,6 +66,9 @@ class _GameBoardPageState extends State<GameBoardPage>
 
   // Tracking para mensaje de victoria
   String? _lastGameStatus;
+
+  // Tracking para no repetir el mismo mensaje de surrender
+  String? _lastShownSurrenderMessage;
 
   @override
   void initState() {
@@ -678,7 +684,6 @@ class _GameBoardPageState extends State<GameBoardPage>
                                       _buildEmoteButton(ctrl, 9),
                                       _buildEmoteButton(ctrl, 10),
                                       _buildEmoteButton(ctrl, 11),
-                                      // Agregar más botones GIF aquí: _buildEmoteButton(ctrl, 12), etc.
                                     ],
                                   ),
                                 ],
@@ -769,7 +774,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                               verticalDirection: VerticalDirection.up,
                               children: ctrl.emotes.map((e) {
                                 final isGif = _isGifEmote(e.emoteCode);
-                                
+
                                 if (isGif) {
                                   final gifUrl = _emoteGifUrl(e.emoteCode);
                                   if (gifUrl != null) {
@@ -787,7 +792,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                                     );
                                   }
                                 }
-                                
+
                                 // Emoji Unicode normal
                                 final emoji = _emoteEmoji(e.emoteCode);
                                 return Container(
@@ -962,14 +967,31 @@ class _GameBoardPageState extends State<GameBoardPage>
     final ctrl = Provider.of<GameController>(context, listen: false);
     final game = ctrl.game;
 
-    // --- Detectar rendición por diferencia en la lista de jugadores ---
+    // --- Mensaje de rendición que viene DIRECTO del GameController (SignalR) ---
+    if (ctrl.lastSurrenderMessage != null &&
+        ctrl.lastSurrenderMessage!.isNotEmpty &&
+        ctrl.lastSurrenderMessage != _lastShownSurrenderMessage) {
+      _lastShownSurrenderMessage = ctrl.lastSurrenderMessage;
+      if (!ctrl.lastSurrenderWasMe && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ctrl.lastSurrenderMessage!),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+
     if (game != null) {
       final currentIds = game.players
           .map((p) => p.id?.toString())
           .whereType<String>()
           .toList();
 
-      if (_lastPlayerIds.isNotEmpty &&
+      // --- Fallback: detectar rendición por diferencia en la lista de jugadores ---
+      // Solo usar si NO vino mensaje de surrender del hub
+      if (ctrl.lastSurrenderMessage == null &&
+          _lastPlayerIds.isNotEmpty &&
           currentIds.length < _lastPlayerIds.length) {
         // Alguien salió
         final removed = _lastPlayerIds
@@ -1185,23 +1207,33 @@ class _GameBoardPageState extends State<GameBoardPage>
       return;
     }
 
-    // 7) Si el jugador ganó, incrementar victorias
+    // 7) Si el jugador ganó, incrementar victorias **y monedas**
     if (playerWon) {
       final auth = Provider.of<AuthController>(context, listen: false);
       try {
+        // 🏆 victorias (ya lo tenías)
         await auth.incrementWins();
         final userService = UserService();
         await userService.incrementWins();
+
+        // 🪙 monedas (solo front, el backend ya las suma en BD)
+        final newCoins = auth.coins + _coinsRewardOnWin;
+        await auth.setCoins(newCoins);
       } catch (e) {
-        developer.log('Error incrementando victorias: $e', name: 'GameBoardPage');
+        developer.log(
+          'Error incrementando victorias/monedas: $e',
+          name: 'GameBoardPage',
+        );
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("🎉 ¡Felicidades! Has ganado la partida 🏆"),
-            duration: Duration(seconds: 5),
-            backgroundColor: Color(0xFF0DBA99),
+          SnackBar(
+            content: Text(
+              "🎉 ¡Felicidades! Has ganado la partida 🏆 +$_coinsRewardOnWin monedas",
+            ),
+            duration: const Duration(seconds: 5),
+            backgroundColor: const Color(0xFF0DBA99),
           ),
         );
       }
@@ -1337,7 +1369,6 @@ class _GameBoardPageState extends State<GameBoardPage>
         return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3g4eW9nMXR6MWsxMTE1d3JleDR0anVkMmxkajFsNnJwMjFkcjJweCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WobKKxW5i4M6hS8PxD/giphy.gif";
       case 11:
         return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExODZ1NHFqdDgzNnZkc3Fta3gwOHNhbW92MDh0MW10eG5qZ2k1M2V1eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/gQgCdTVivhNAzPPmGb/giphy.gif";
-      // Agregar más GIFs aquí con códigos 12, 13, etc.
       default:
         return null;
     }

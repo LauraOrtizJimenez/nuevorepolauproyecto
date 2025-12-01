@@ -56,6 +56,14 @@ class GameController extends ChangeNotifier {
   List<EmoteEvent> get emotes => List.unmodifiable(_emotes);
 
   // ==========================================================
+  // SURRENDER EVENT (para mostrar en UI)
+  // ==========================================================
+  String? lastSurrenderMessage;
+  String? lastSurrenderUsername;
+  String? lastSurrenderUserId;
+  bool lastSurrenderWasMe = false;
+
+  // ==========================================================
   // GAME CREATION / JOIN
   // ==========================================================
   Future<bool> createOrJoinGame({String? roomId}) async {
@@ -348,7 +356,7 @@ class GameController extends ChangeNotifier {
         'ReceiveEmote: Recibido evento con args: $args',
         name: 'GameController',
       );
-      
+
       if (args == null || args.isEmpty) {
         developer.log('ReceiveEmote: args vacío', name: 'GameController');
         return;
@@ -356,17 +364,19 @@ class GameController extends ChangeNotifier {
       final raw = args[0];
 
       if (raw is Map) {
-        // El backend envía: { GameId, EmoteId (string), UserId, Username, SentAt }
-        // Convertir a formato EmoteEvent
         final payload = Map<String, dynamic>.from(raw as Map);
         final Map<String, dynamic> emoteData = {
           'gameId': payload['GameId'] ?? payload['gameId'] ?? '',
           'fromPlayerId': payload['UserId'] ?? payload['userId'] ?? 0,
           'fromUsername': payload['Username'] ?? payload['username'] ?? 'Jugador',
-          'emoteCode': int.tryParse(payload['EmoteId'] ?? payload['emoteId'] ?? '1') ?? 1,
-          'sentAt': payload['SentAt'] ?? payload['sentAt'] ?? DateTime.now().toIso8601String(),
+          'emoteCode':
+              int.tryParse(payload['EmoteId'] ?? payload['emoteId'] ?? '1') ??
+                  1,
+          'sentAt': payload['SentAt'] ??
+              payload['sentAt'] ??
+              DateTime.now().toIso8601String(),
         };
-        
+
         final evt = EmoteEvent.fromJson(emoteData);
 
         developer.log(
@@ -382,7 +392,6 @@ class GameController extends ChangeNotifier {
           return;
         }
 
-        // Ignorar si el emote es del propio usuario (ya lo mostramos localmente)
         if (evt.fromPlayerId.toString() == _currentUserId?.toString()) {
           developer.log(
             'ReceiveEmote: Ignorando emote propio (ya mostrado localmente)',
@@ -398,7 +407,6 @@ class GameController extends ChangeNotifier {
         );
         notifyListeners();
 
-        // se borran solos después de 3 segundos
         Future.delayed(const Duration(seconds: 3), () {
           _emotes.remove(evt);
           notifyListeners();
@@ -503,7 +511,12 @@ class GameController extends ChangeNotifier {
         );
 
         _registerEvents(
-          ['PlayerJoined', 'playerJoined', 'OnPlayerJoined', 'UserJoined'],
+          [
+            'PlayerJoined',
+            'playerJoined',
+            'OnPlayerJoined',
+            'UserJoined',
+          ],
           (args) async {
             try {
               developer.log(
@@ -553,12 +566,68 @@ class GameController extends ChangeNotifier {
           }
         });
 
+        // ======================================================
+        // EVENTO PlayerSurrendered (BACKEND NUEVO)
+        // ======================================================
         _signalR.on('PlayerSurrendered', (args) async {
           try {
             developer.log(
               'PlayerSurrendered event received: ${args?.toString() ?? ''}',
               name: 'GameController',
             );
+
+            String? surrenderedUserId;
+            String? surrenderedUsername;
+            String? message;
+
+            if (args != null && args.isNotEmpty) {
+              final raw = args[0];
+
+              if (raw is Map) {
+                final payload = Map<String, dynamic>.from(raw as Map);
+
+                surrenderedUserId =
+                    (payload['UserId'] ?? payload['userId'])?.toString();
+                surrenderedUsername =
+                    (payload['Username'] ?? payload['username'])?.toString();
+                message =
+                    (payload['Message'] ?? payload['message'])?.toString();
+
+                final gameIdPayload =
+                    (payload['GameId'] ?? payload['gameId'])?.toString();
+
+                if (game != null &&
+                    gameIdPayload != null &&
+                    gameIdPayload.toString() != game!.id.toString()) {
+                  developer.log(
+                    'PlayerSurrendered: Ignorando evento de otro juego ($gameIdPayload != ${game!.id})',
+                    name: 'GameController',
+                  );
+                  return;
+                }
+              } else if (raw is String) {
+                // Compatibilidad con versión antigua que enviaba solo string
+                message = raw;
+                surrenderedUsername = raw;
+              }
+            }
+
+            lastSurrenderUserId = surrenderedUserId;
+            lastSurrenderUsername = surrenderedUsername;
+            lastSurrenderMessage =
+                message ?? '${surrenderedUsername ?? 'Un jugador'} se rindió 😢';
+
+            lastSurrenderWasMe = (lastSurrenderUserId != null &&
+                _currentUserId != null &&
+                lastSurrenderUserId.toString() == _currentUserId.toString());
+
+            developer.log(
+              'PlayerSurrendered parsed: userId=$lastSurrenderUserId username=$lastSurrenderUsername wasMe=$lastSurrenderWasMe',
+              name: 'GameController',
+            );
+
+            notifyListeners();
+
             if (game != null) {
               try {
                 await _refreshPlayersFromServer();
@@ -1113,6 +1182,8 @@ class GameController extends ChangeNotifier {
         notifyListeners();
 
         final appliedSteps = newPos - mover.position;
+        final bool isWinnerLocal = newPos >= boardSize;
+
         final res = MoveResultDto(
           diceValue: appliedSteps > 0 ? appliedSteps : dice,
           fromPosition: mover.position,
@@ -1120,6 +1191,7 @@ class GameController extends ChangeNotifier {
           finalPosition: newPos,
           message: 'Simulated move',
           requiresProfesorAnswer: false,
+          isWinner: isWinnerLocal,
         );
         lastMoveResult = res;
         lastMoveSimulated = true;
@@ -1481,7 +1553,6 @@ class GameController extends ChangeNotifier {
     final gid = int.tryParse(game!.id) ?? 0;
     if (gid <= 0) return;
 
-    // SIEMPRE mostrar localmente de inmediato para feedback instantáneo
     final localEmote = EmoteEvent(
       gameId: game!.id,
       fromPlayerId: _currentUserId ?? '',
@@ -1489,33 +1560,29 @@ class GameController extends ChangeNotifier {
       emoteCode: emoteCode,
       sentAt: DateTime.now(),
     );
-    
+
     _emotes.add(localEmote);
     notifyListeners();
-    
+
     developer.log(
       'sendEmote: Emote mostrado localmente (${_emotes.length} total)',
       name: 'GameController',
     );
-    
-    // Remover después de 3 segundos
+
     Future.delayed(const Duration(seconds: 3), () {
       _emotes.remove(localEmote);
       notifyListeners();
     });
 
-    // También enviar al servidor para que lo vean los demás
     try {
       if (_signalR.isConnected) {
         developer.log(
           'sendEmote: Enviando emote $emoteCode para game $gid',
           name: 'GameController',
         );
-        
-        // El backend espera: SendEmote(int gameId, string emoteId)
-        // Convertir el emoteCode a string como espera el backend
+
         await _signalR.invoke('SendEmote', args: [gid, emoteCode.toString()]);
-        
+
         developer.log(
           'sendEmote: Emote enviado exitosamente al servidor',
           name: 'GameController',
@@ -1547,9 +1614,7 @@ class GameController extends ChangeNotifier {
         try {
           await _signalR.invoke('SendSurrender', args: [gid]);
           return true;
-        } catch (_) {
-          // fallthrough
-        }
+        } catch (_) {}
       }
 
       lastMoveSimulated = false;
