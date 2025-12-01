@@ -16,8 +16,9 @@ class ShopPage extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) {
         final ctrl = SkinsStoreController(SkinsService());
+        // Valor inicial (por si tarda el refresh)
         ctrl.setCoins(initialCoins);
-        // Cargamos por defecto la TIENDA
+        // Por defecto cargamos la TIENDA
         ctrl.loadStore();
         return ctrl;
       },
@@ -53,13 +54,13 @@ class _ShopViewState extends State<_ShopView> {
     final auth = context.watch<AuthController>();
     final skinsCtrl = context.watch<SkinsStoreController>();
 
-    final coins = auth.coins; // 👈 coins fuente de verdad
+    // Fuente de verdad de las monedas
+    final coins = auth.coins;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tienda de skins'),
         centerTitle: true,
-        // 👉 botón para salir de la tienda
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -84,7 +85,9 @@ class _ShopViewState extends State<_ShopView> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(999),
@@ -297,7 +300,7 @@ class _ShopViewState extends State<_ShopView> {
     final canBuy = !isOwned && auth.coins >= item.priceCoins;
 
     final color = _resolveColor(item.colorKey);
-    final iconData = _resolveIcon(item.iconKey);
+    final iconChar = _resolveIconChar(item.iconKey);
 
     return Container(
       decoration: BoxDecoration(
@@ -319,11 +322,17 @@ class _ShopViewState extends State<_ShopView> {
         padding: const EdgeInsets.all(10),
         child: Column(
           children: [
-            // Preview ficha
+            // Preview ficha (mismo estilo que el tablero)
             CircleAvatar(
               radius: 26,
               backgroundColor: color,
-              child: Icon(iconData, color: Colors.white),
+              child: Text(
+                iconChar,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -353,6 +362,17 @@ class _ShopViewState extends State<_ShopView> {
                 )
               ],
             ),
+            const SizedBox(height: 4),
+            if (isOwned)
+              Text(
+                isSelected ? 'En uso' : 'Comprada',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isSelected
+                      ? const Color(0xFF0DBA99)
+                      : Colors.grey.shade600,
+                ),
+              ),
             const Spacer(),
             if (!isOwned && _tabIndex == 0)
               SizedBox(
@@ -362,15 +382,15 @@ class _ShopViewState extends State<_ShopView> {
                       ? () async {
                           await skinsCtrl.buySkin(item);
 
-                          // Si la compra fue exitosa (sin error), refrescamos perfil
                           if (skinsCtrl.error == null) {
                             await auth.refreshProfile();
                             skinsCtrl.setCoins(auth.coins);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content:
-                                      Text('Has comprado la skin "${item.name}"'),
+                                  content: Text(
+                                    'Has comprado la skin "${item.name}"',
+                                  ),
                                 ),
                               );
                             }
@@ -395,11 +415,9 @@ class _ShopViewState extends State<_ShopView> {
                   onPressed: isSelected
                       ? null
                       : () async {
-                          // Avisamos al backend que queremos usar esta skin
                           await skinsCtrl.selectSkin(item);
 
                           if (skinsCtrl.error == null) {
-                            // Guardar elección local (para GameBoardWidget)
                             await auth.setSelectedSkin(
                               colorKey: item.colorKey,
                               iconKey: item.iconKey,
@@ -408,7 +426,8 @@ class _ShopViewState extends State<_ShopView> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      'Ahora estás usando "${item.name}"'),
+                                    'Ahora estás usando "${item.name}"',
+                                  ),
                                 ),
                               );
                             }
@@ -432,10 +451,15 @@ class _ShopViewState extends State<_ShopView> {
   }
 
   // ---------------------------------------------
-  //  Helpers: colores e iconos por key
+  //  Helpers: colores e iconos por key (alineado con GameBoard)
   // ---------------------------------------------
   Color _resolveColor(String? key) {
-    switch (key) {
+    if (key == null || key.isEmpty) {
+      return const Color(0xFF4A90E2);
+    }
+    final lower = key.toLowerCase().trim();
+
+    switch (lower) {
       case 'red':
       case 'rojo':
         return Colors.redAccent;
@@ -445,37 +469,61 @@ class _ShopViewState extends State<_ShopView> {
       case 'green':
       case 'verde':
         return Colors.green;
+      case 'yellow':
+      case 'amarillo':
+        return Colors.yellow.shade700;
       case 'purple':
       case 'morado':
         return Colors.purpleAccent;
+      case 'pink':
+      case 'rosa':
+        return Colors.pinkAccent;
       case 'orange':
       case 'naranja':
         return Colors.deepOrangeAccent;
+
+      // mismas que en GameBoardWidget
+      case 'dark_blue':
+        return const Color(0xFF003366);
+      case 'gold':
+        return const Color(0xFFFFD700);
+      case 'steel_gray':
+        return const Color(0xFF607D8B);
+      case 'neon_purple':
+        return const Color(0xFFB000FF);
+
       default:
         return const Color(0xFF4A90E2);
     }
   }
 
-  IconData _resolveIcon(String? key) {
-    switch (key) {
-      case 'hat':
-      case 'sombrero':
-        return Icons.school_rounded;
-      case 'star':
-      case 'estrella':
-        return Icons.star_rounded;
-      case 'skull':
-      case 'calavera':
-        return Icons.mood_bad_rounded;
-      case 'book':
-      case 'libro':
-        return Icons.menu_book_rounded;
-      case 'bolt':
-      case 'rayo':
-        return Icons.bolt_rounded;
-      default:
-        return Icons.person_rounded;
+  /// Devuelve un char/emoji para mostrar en el preview.
+  String _resolveIconChar(String? key) {
+    if (key == null || key.isEmpty) {
+      return '⭐';
     }
+
+    final trimmed = key.trim();
+    final lower = trimmed.toLowerCase();
+
+    // Nombres lógicos
+    switch (lower) {
+      case 'nerd':
+        return '🤓';
+      case 'angry':
+        return '😡';
+      case 'cool':
+        return '😎';
+      case 'classic':
+        return 'C';
+    }
+
+    // Si ya es emoji (💎, 👑, 🛡️, ⭐, 🔮, etc.), lo usamos tal cual
+    final hasNonAscii = RegExp(r'[^\x00-\x7F]').hasMatch(trimmed);
+    if (hasNonAscii) return trimmed;
+
+    // Fallback a estrella
+    return '⭐';
   }
 
   // ---------------------------------------------
