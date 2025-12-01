@@ -10,7 +10,7 @@ class GameBoardWidget extends StatefulWidget {
   final List<PlayerStateDto> players;
   final List<SnakeDto> snakes;
   final List<LadderDto> ladders;
-  final int size;
+  final int size; // número de casillas por lado (normalmente 10)
 
   final String? animatePlayerId;
   final int? animateSteps;
@@ -37,6 +37,9 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
   int _animStartPos = 0;
   int _animPlayerIndex = -1;
   Timer? _animTimer;
+
+  /// Lado del tablero con fallback a 10 si llega 0 o raro.
+  int get _side => widget.size <= 0 ? 10 : widget.size;
 
   @override
   void didUpdateWidget(covariant GameBoardWidget oldWidget) {
@@ -99,7 +102,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
           setState(() {
             _animatedTileIndex = min(
               _animatedTileIndex + 1,
-              widget.size * widget.size,
+              _side * _side,
             );
           });
         },
@@ -107,7 +110,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
     }
   }
 
-  // 🎨 SKIN → COLOR
+  // 🎨 SKIN → COLOR (incluye tus nuevas keys)
   Color _colorFromKey(String? key, int idxFallback) {
     const fallbackColors = [
       Colors.red,
@@ -124,7 +127,9 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       return fallbackColors[idxFallback % fallbackColors.length];
     }
 
-    switch (key.toLowerCase()) {
+    final lower = key.toLowerCase().trim();
+
+    switch (lower) {
       case 'red':
       case 'rojo':
         return Colors.red;
@@ -146,18 +151,33 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       case 'orange':
       case 'naranja':
         return Colors.orange;
+
+      // 🔵 nuevas skins del backend
+      case 'dark_blue':
+        return const Color(0xFF003366); // azul marino
+      case 'gold':
+        return const Color(0xFFFFD700); // dorado
+      case 'steel_gray':
+        return const Color(0xFF607D8B); // gris acero
+      case 'neon_purple':
+        return const Color(0xFFB000FF); // morado neón
+
       default:
         return fallbackColors[idxFallback % fallbackColors.length];
     }
   }
 
-  // 😎 SKIN → ICON
+  // 😎 SKIN → ICON (nombre o emoji)
   String _iconCharFromKey(String? key, String username) {
     if (key == null || key.isEmpty) {
       return username.isNotEmpty ? username[0].toUpperCase() : '?';
     }
 
-    switch (key.toLowerCase()) {
+    final trimmed = key.trim();
+    final lower = trimmed.toLowerCase();
+
+    // nombres "lógicos"
+    switch (lower) {
       case 'nerd':
         return '🤓';
       case 'angry':
@@ -166,9 +186,14 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
         return '😎';
       case 'classic':
         return username.isNotEmpty ? username[0].toUpperCase() : 'C';
-      default:
-        return username.isNotEmpty ? username[0].toUpperCase() : '?';
     }
+
+    // Si viene ya un emoji (💎, 👑, 🛡️, ⭐, 🔮) lo usamos tal cual
+    final hasNonAscii = RegExp(r'[^\x00-\x7F]').hasMatch(trimmed);
+    if (hasNonAscii) return trimmed;
+
+    // Fallback: inicial
+    return username.isNotEmpty ? username[0].toUpperCase() : '?';
   }
 
   Offset _tileCenter(int tileIndex, double tileSize, int size) {
@@ -190,14 +215,24 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       aspectRatio: 1,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final size = min(constraints.maxWidth, constraints.maxHeight);
+          // 🔐 Evitar infinitos / tamaños raros
+          double size;
+          if (!constraints.hasBoundedWidth && !constraints.hasBoundedHeight) {
+            size = 320; // fallback
+          } else if (!constraints.hasBoundedWidth) {
+            size = constraints.maxHeight;
+          } else if (!constraints.hasBoundedHeight) {
+            size = constraints.maxWidth;
+          } else {
+            size = min(constraints.maxWidth, constraints.maxHeight);
+          }
 
           const framePadding = 24.0;
           const borderPadding = 8.0;
           const totalPadding = (framePadding + borderPadding) * 2;
 
-          final boardSize = size - totalPadding;
-          final tileSize = boardSize / widget.size;
+          final boardSize = max(0.0, size - totalPadding);
+          final tileSize = boardSize / _side;
 
           return Center(
             child: Container(
@@ -233,18 +268,17 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                         children: [
                           // GRID
                           Column(
-                            children: List.generate(widget.size, (row) {
+                            children: List.generate(_side, (row) {
                               final isReversed =
-                                  (widget.size - 1 - row) % 2 == 1;
+                                  (_side - 1 - row) % 2 == 1;
                               return Expanded(
                                 child: Row(
-                                  children: List.generate(widget.size, (col) {
+                                  children: List.generate(_side, (col) {
                                     final visualCol = isReversed
-                                        ? (widget.size - 1 - col)
+                                        ? (_side - 1 - col)
                                         : col;
                                     final tileIndex =
-                                        (widget.size *
-                                                (widget.size - 1 - row)) +
+                                        (_side * (_side - 1 - row)) +
                                             visualCol +
                                             1;
 
@@ -252,8 +286,8 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                         (row + col) % 2 == 0;
 
                                     return Container(
-                                      width: tileSize,   // 👈 IMPORTANTE
-                                      height: tileSize,  // 👈 IMPORTANTE
+                                      width: tileSize,
+                                      height: tileSize,
                                       decoration: BoxDecoration(
                                         border: Border.all(
                                           color: const Color(0xFF8B6F47)
@@ -266,6 +300,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                       ),
                                       child: Stack(
                                         children: [
+                                          // número de casilla
                                           Positioned(
                                             left: 6,
                                             top: 6,
@@ -376,7 +411,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                             final center = _tileCenter(
                               player.position,
                               tileSize,
-                              widget.size,
+                              _side,
                             );
 
                             final tokenSize =
@@ -454,7 +489,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                               final overlayCenter = _tileCenter(
                                 _animatedTileIndex,
                                 tileSize,
-                                widget.size,
+                                _side,
                               );
 
                               final tokenSize =
