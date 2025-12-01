@@ -1,20 +1,17 @@
 ﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/models/player_state_dto.dart';
 import '../../../core/models/snake_dto.dart';
 import '../../../core/models/ladder_dto.dart';
-import '../../auth/state/auth_controller.dart';
 
 class GameBoardWidget extends StatefulWidget {
   final List<PlayerStateDto> players;
   final List<SnakeDto> snakes;
   final List<LadderDto> ladders;
-  final int size; // number of tiles per side (10 => 100)
+  final int size;
 
-  // Optional animation request: animate a specific player visually by steps
   final String? animatePlayerId;
   final int? animateSteps;
   final VoidCallback? onAnimationComplete;
@@ -45,7 +42,6 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
   void didUpdateWidget(covariant GameBoardWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Solo iniciamos animación cuando llega una nueva petición y no estamos animando
     if (widget.animatePlayerId != null &&
         widget.animateSteps != null &&
         !_isAnimating) {
@@ -58,8 +54,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
       final playerFinalPos = widget.players[idx].position;
       final steps = max(1, widget.animateSteps!);
 
-      // Intentar obtener la posición anterior del jugador desde oldWidget
-      int oldPosition = max(1, playerFinalPos - steps); // fallback por defecto
+      int oldPosition = max(1, playerFinalPos - steps);
 
       try {
         if (oldWidget.players.isNotEmpty) {
@@ -70,11 +65,8 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
             oldPosition = oldWidget.players[oldPlayerIndex].position;
           }
         }
-      } catch (_) {
-        // Si falla, usa el cálculo por defecto
-      }
+      } catch (_) {}
 
-      // Usar la posición anterior real
       _animStartPos = oldPosition;
       _animatedTileIndex = _animStartPos;
 
@@ -96,16 +88,14 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
             _isAnimating = false;
 
             setState(() {
-              _animatedTileIndex = 0; // oculta el overlay
+              _animatedTileIndex = 0;
             });
 
-            if (widget.onAnimationComplete != null) {
-              widget.onAnimationComplete!();
-            }
+            widget.onAnimationComplete?.call();
             return;
           }
 
-          remaining -= 1;
+          remaining--;
           setState(() {
             _animatedTileIndex = min(
               _animatedTileIndex + 1,
@@ -117,7 +107,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
     }
   }
 
-  // 🎨 MAPEO DE SKIN → COLOR
+  // 🎨 SKIN → COLOR
   Color _colorFromKey(String? key, int idxFallback) {
     const fallbackColors = [
       Colors.red,
@@ -161,7 +151,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
     }
   }
 
-  // 😎 MAPEO DE SKIN → CARITA / LETRA
+  // 😎 SKIN → ICON
   String _iconCharFromKey(String? key, String username) {
     if (key == null || key.isEmpty) {
       return username.isNotEmpty ? username[0].toUpperCase() : '?';
@@ -196,22 +186,12 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // 👤 Info del usuario actual y su skin seleccionada
-    final auth = context.watch<AuthController>();
-    final myId = auth.userId?.trim();
-    final myName = auth.username?.trim().toLowerCase() ?? '';
-    final myColorKey = auth.selectedColorKey;
-    final myIconKey = auth.selectedIconKey;
-
     return AspectRatio(
       aspectRatio: 1,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final size = constraints.maxWidth < constraints.maxHeight
-              ? constraints.maxWidth
-              : constraints.maxHeight;
+          final size = min(constraints.maxWidth, constraints.maxHeight);
 
-          // Calcular tamaño del tablero interno
           const framePadding = 24.0;
           const borderPadding = 8.0;
           const totalPadding = (framePadding + borderPadding) * 2;
@@ -221,7 +201,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
 
           return Center(
             child: Container(
-              padding: const EdgeInsets.all(10), // marco exterior
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color: const Color(0xFF4A2511),
@@ -234,7 +214,7 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                 ],
               ),
               child: Container(
-                padding: const EdgeInsets.all(4), // marco interior
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFD2B48C),
                   border: Border.all(
@@ -247,213 +227,256 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                   child: SizedBox(
                     width: boardSize,
                     height: boardSize,
-                    child: Container(
-                      color: const Color(0xFFF5DEB3),
-                      child: Stack(
-                        children: [
-                          // ---------------- GRID ----------------
-                          Column(
-                            children: List.generate(widget.size, (row) {
-                              final isReversed =
-                                  (widget.size - 1 - row) % 2 == 1;
-                              return Expanded(
-                                child: Row(
-                                  children: List.generate(widget.size, (col) {
-                                    final visualCol = isReversed
-                                        ? (widget.size - 1 - col)
-                                        : col;
-                                    final tileIndex =
-                                        (widget.size *
-                                                (widget.size - 1 - row)) +
-                                            visualCol +
-                                            1;
-                                    final bool isEven =
-                                        (row + col) % 2 == 0;
-                                    return Container(
-                                      width: tileSize,
-                                      height: tileSize,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: const Color(0xFF8B6F47)
-                                              .withOpacity(0.3),
-                                          width: 0.5,
+                    child: Stack(
+                      children: [
+                        // GRID
+                        Column(
+                          children: List.generate(widget.size, (row) {
+                            final isReversed =
+                                (widget.size - 1 - row) % 2 == 1;
+                            return Expanded(
+                              child: Row(
+                                children: List.generate(widget.size, (col) {
+                                  final visualCol = isReversed
+                                      ? (widget.size - 1 - col)
+                                      : col;
+                                  final tileIndex =
+                                      (widget.size *
+                                              (widget.size - 1 - row)) +
+                                          visualCol +
+                                          1;
+
+                                  final bool isEven =
+                                      (row + col) % 2 == 0;
+
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: const Color(0xFF8B6F47)
+                                            .withOpacity(0.3),
+                                        width: 0.5,
+                                      ),
+                                      color: isEven
+                                          ? const Color(0xFFF5DEB3)
+                                          : const Color(0xFF8B4513),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned(
+                                          left: 6,
+                                          top: 6,
+                                          child: Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white
+                                                  .withOpacity(0.7),
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              '$tileIndex',
+                                              style: TextStyle(
+                                                fontSize: (tileSize * 0.15)
+                                                    .clamp(9.0, 14.0),
+                                                color:
+                                                    const Color(0xFF4A2511),
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
                                         ),
-                                        color: isEven
-                                            ? const Color(0xFFF5DEB3)
-                                            : const Color(0xFF8B4513),
-                                      ),
-                                      child: Stack(
-                                        children: [
-                                          // Número de casilla
-                                          Positioned(
-                                            left: 6,
-                                            top: 6,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 5,
-                                                vertical: 2,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white
-                                                    .withOpacity(0.7),
-                                                borderRadius:
-                                                    BorderRadius.circular(3),
-                                              ),
-                                              child: Text(
-                                                '$tileIndex',
-                                                style: TextStyle(
-                                                  fontSize: (tileSize * 0.15)
-                                                      .clamp(9.0, 14.0),
-                                                  color:
-                                                      const Color(0xFF4A2511),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          // Profesores y Matones
-                                          Positioned(
-                                            right: 6,
-                                            bottom: 6,
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              children: [
-                                                // Matones (antes snakes) - icono rojo
-                                                ...widget.snakes
-                                                    .where((s) =>
-                                                        s.headPosition ==
-                                                        tileIndex)
-                                                    .map(
-                                                      (s) => Container(
-                                                        width:
-                                                            tileSize * 0.25,
-                                                        height:
-                                                            tileSize * 0.25,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: Colors
-                                                              .redAccent
-                                                              .shade200,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(6),
-                                                        ),
-                                                        child: const Icon(
-                                                          Icons.school,
-                                                          size: 15,
-                                                          color: Colors.white,
-                                                        ),
+
+                                        // Profesores y Matones
+                                        Positioned(
+                                          right: 6,
+                                          bottom: 6,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              ...widget.snakes
+                                                  .where((s) =>
+                                                      s.headPosition ==
+                                                      tileIndex)
+                                                  .map(
+                                                    (s) => Container(
+                                                      width: tileSize * 0.25,
+                                                      height: tileSize * 0.25,
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        color: Colors
+                                                            .redAccent
+                                                            .shade200,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6),
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.school,
+                                                        size: 15,
+                                                        color: Colors.white,
                                                       ),
                                                     ),
-                                                // Profesores (antes ladders) - icono verde
-                                                ...widget.ladders
-                                                    .where((l) =>
-                                                        l.bottomPosition ==
-                                                        tileIndex)
-                                                    .map(
-                                                      (l) => Container(
-                                                        width:
-                                                            tileSize * 0.25,
-                                                        height:
-                                                            tileSize * 0.25,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: Colors
-                                                              .green.shade600,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(6),
-                                                        ),
-                                                        child: const Icon(
-                                                          Icons.attach_money,
-                                                          size: 15,
-                                                          color: Colors.white,
-                                                        ),
+                                                  ),
+
+                                              ...widget.ladders
+                                                  .where((l) =>
+                                                      l.bottomPosition ==
+                                                      tileIndex)
+                                                  .map(
+                                                    (l) => Container(
+                                                      width: tileSize * 0.25,
+                                                      height: tileSize * 0.25,
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        color: Colors
+                                                            .green.shade600,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6),
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.attach_money,
+                                                        size: 15,
+                                                        color: Colors.white,
                                                       ),
                                                     ),
-                                              ],
-                                            ),
+                                                  ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ),
-                              );
-                            }),
-                          ),
-
-                          // ---------------- TOKENS FIJOS ----------------
-                          ...widget.players.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final player = entry.value;
-
-                            final center = _tileCenter(
-                              player.position,
-                              tileSize,
-                              widget.size,
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ),
                             );
-                            final tokenSize =
-                                (tileSize * 0.36).clamp(14.0, tileSize * 0.7);
+                          }),
+                        ),
 
-                            double left = center.dx - tokenSize / 2;
-                            double top = center.dy - tokenSize / 2;
-                            left =
-                                left.clamp(0.0, boardSize - tokenSize);
-                            top = top.clamp(0.0, boardSize - tokenSize);
+                        // TOKENS FIJOS
+                        ...widget.players.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final player = entry.value;
 
-                            // Si estamos animando este jugador, NO dibujamos el token fijo.
-                            if (_isAnimating && _animPlayerIndex == idx) {
+                          final center = _tileCenter(
+                            player.position,
+                            tileSize,
+                            widget.size,
+                          );
+
+                          final tokenSize =
+                              (tileSize * 0.36).clamp(14.0, tileSize * 0.7);
+
+                          double left = center.dx - tokenSize / 2;
+                          double top = center.dy - tokenSize / 2;
+
+                          left = left.clamp(0.0, boardSize - tokenSize);
+                          top = top.clamp(0.0, boardSize - tokenSize);
+
+                          if (_isAnimating && _animPlayerIndex == idx) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final color = _colorFromKey(
+                              player.tokenColorKey, idx);
+                          final label = _iconCharFromKey(
+                              player.tokenIconKey, player.username);
+
+                          return Positioned(
+                            left: left,
+                            top: top,
+                            width: tokenSize,
+                            height: tokenSize,
+                            child: AnimatedContainer(
+                              duration:
+                                  const Duration(milliseconds: 400),
+                              curve: Curves.easeInOut,
+                              child: Tooltip(
+                                message: player.username,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.95),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 6,
+                                        offset: Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: (tokenSize * 0.45)
+                                          .clamp(12.0, 18.0),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+
+                        // TOKEN ANIMADO
+                        if (_isAnimating &&
+                            _animPlayerIndex >= 0 &&
+                            _animatedTileIndex > 0)
+                          Builder(builder: (ctx) {
+                            if (_animPlayerIndex < 0 ||
+                                _animPlayerIndex >=
+                                    widget.players.length) {
                               return const SizedBox.shrink();
                             }
 
-                            // 👤 ¿Es mi ficha?
-                            final isMe = () {
-                              try {
-                                final pid =
-                                    player.id?.toString().trim() ?? '';
-                                final pname =
-                                    player.username.trim().toLowerCase();
-                                return (myId != null &&
-                                        myId.isNotEmpty &&
-                                        pid == myId) ||
-                                    (myName.isNotEmpty &&
-                                        pname == myName);
-                              } catch (_) {
-                                return false;
-                              }
-                            }();
-
-                            // Keys efectivas: backend si trae, si no, la skin local
-                            final effectiveColorKey =
-                                (player.tokenColorKey != null &&
-                                        player.tokenColorKey!.isNotEmpty)
-                                    ? player.tokenColorKey
-                                    : (isMe ? myColorKey : null);
-
-                            final effectiveIconKey =
-                                (player.tokenIconKey != null &&
-                                        player.tokenIconKey!.isNotEmpty)
-                                    ? player.tokenIconKey
-                                    : (isMe ? myIconKey : null);
-
-                            final color =
-                                _colorFromKey(effectiveColorKey, idx);
-                            final label = _iconCharFromKey(
-                              effectiveIconKey,
-                              player.username,
+                            final overlayCenter = _tileCenter(
+                              _animatedTileIndex,
+                              tileSize,
+                              widget.size,
                             );
 
+                            final tokenSize =
+                                (tileSize * 0.36).clamp(
+                              14.0,
+                              tileSize * 0.7,
+                            );
+
+                            double left =
+                                overlayCenter.dx - tokenSize / 2;
+                            double top =
+                                overlayCenter.dy - tokenSize / 2;
+
+                            left = left.clamp(0.0, boardSize - tokenSize);
+                            top = top.clamp(0.0, boardSize - tokenSize);
+
+                            final player =
+                                widget.players[_animPlayerIndex];
+
+                            final color = _colorFromKey(
+                                player.tokenColorKey, _animPlayerIndex);
+                            final label = _iconCharFromKey(
+                                player.tokenIconKey, player.username);
+
                             return Positioned(
-                              left: left.toDouble(),
-                              top: top.toDouble(),
+                              left: left,
+                              top: top,
                               width: tokenSize,
                               height: tokenSize,
                               child: AnimatedContainer(
                                 duration:
-                                    const Duration(milliseconds: 400),
+                                    const Duration(milliseconds: 180),
                                 curve: Curves.easeInOut,
                                 child: Tooltip(
                                   message: player.username,
@@ -462,10 +485,8 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                       color: color.withOpacity(0.95),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: isMe
-                                            ? Colors.yellowAccent
-                                            : Colors.white,
-                                        width: isMe ? 3 : 2,
+                                        color: Colors.white,
+                                        width: 2,
                                       ),
                                       boxShadow: const [
                                         BoxShadow(
@@ -481,155 +502,27 @@ class _GameBoardWidgetState extends State<GameBoardWidget> {
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize:
-                                            (tokenSize * 0.45).clamp(
-                                              12.0,
-                                              18.0,
-                                            ),
-                                        fontWeight: FontWeight.bold,
+                                            (tokenSize * 0.45)
+                                                .clamp(12.0, 18.0),
+                                        fontWeight:
+                                            FontWeight.bold,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             );
-                          }).toList(),
-
-                          // ---------------- TOKEN ANIMADO (OVERLAY) ----------------
-                          if (_isAnimating &&
-                              _animPlayerIndex >= 0 &&
-                              _animatedTileIndex > 0)
-                            Builder(
-                              builder: (ctx) {
-                                if (_animPlayerIndex < 0 ||
-                                    _animPlayerIndex >=
-                                        widget.players.length) {
-                                  return const SizedBox.shrink();
-                                }
-
-                                final overlayCenter = _tileCenter(
-                                  _animatedTileIndex,
-                                  tileSize,
-                                  widget.size,
-                                );
-                                final tokenSize =
-                                    (tileSize * 0.36).clamp(
-                                  14.0,
-                                  tileSize * 0.7,
-                                );
-
-                                double left =
-                                    overlayCenter.dx - tokenSize / 2;
-                                double top =
-                                    overlayCenter.dy - tokenSize / 2;
-                                left = left.clamp(
-                                    0.0, boardSize - tokenSize);
-                                top = top.clamp(
-                                    0.0, boardSize - tokenSize);
-
-                                final player =
-                                    widget.players[_animPlayerIndex];
-
-                                final isMe = () {
-                                  try {
-                                    final pid =
-                                        player.id?.toString().trim() ?? '';
-                                    final pname = player.username
-                                        .trim()
-                                        .toLowerCase();
-                                    return (myId != null &&
-                                            myId.isNotEmpty &&
-                                            pid == myId) ||
-                                        (myName.isNotEmpty &&
-                                            pname == myName);
-                                  } catch (_) {
-                                    return false;
-                                  }
-                                }();
-
-                                final effectiveColorKey =
-                                    (player.tokenColorKey != null &&
-                                            player.tokenColorKey!.isNotEmpty)
-                                        ? player.tokenColorKey
-                                        : (isMe ? myColorKey : null);
-
-                                final effectiveIconKey =
-                                    (player.tokenIconKey != null &&
-                                            player.tokenIconKey!.isNotEmpty)
-                                        ? player.tokenIconKey
-                                        : (isMe ? myIconKey : null);
-
-                                final color = _colorFromKey(
-                                  effectiveColorKey,
-                                  _animPlayerIndex,
-                                );
-                                final label = _iconCharFromKey(
-                                  effectiveIconKey,
-                                  player.username,
-                                );
-
-                                return Positioned(
-                                  left: left,
-                                  top: top,
-                                  width: tokenSize,
-                                  height: tokenSize,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(
-                                      milliseconds: 180,
-                                    ),
-                                    curve: Curves.easeInOut,
-                                    child: Tooltip(
-                                      message: player.username,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: color.withOpacity(0.95),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isMe
-                                                ? Colors.yellowAccent
-                                                : Colors.white,
-                                            width: isMe ? 3 : 2,
-                                          ),
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Colors.black26,
-                                              blurRadius: 6,
-                                              offset: Offset(0, 3),
-                                            ),
-                                          ],
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          label,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: (tokenSize * 0.45)
-                                                .clamp(12.0, 18.0),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-
-                          // ---------------- LABELS ----------------
-
-
-
-
-                        ], // Stack children
-                      ), // Stack
-                    ), // Container (fondo)
-                  ), // SizedBox (boardSize)
-                ), // ClipRRect
-              ), // Container (borde)
-            ), // Container (marco)
-          ); // Center
-        }, // builder
-      ), // LayoutBuilder
-    ); // AspectRatio
+                          }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
