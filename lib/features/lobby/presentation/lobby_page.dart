@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../state/lobby_controller.dart';
 import '../../auth/presentation/logout_button.dart';
@@ -85,38 +86,17 @@ class _LobbyPageState extends State<LobbyPage> {
   //  BACKGROUND
   // ─────────────────────────────
   Widget _buildBackground() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF065A4B), Color(0xFF044339)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: const AssetImage('assets/fondolobby.png'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.3),
+            BlendMode.darken,
           ),
         ),
-        Positioned(
-          top: 60,
-          left: 24,
-          child: _softIcon(Icons.school_rounded, 70),
-        ),
-        Positioned(
-          top: 150,
-          right: 40,
-          child: _softIcon(Icons.groups_rounded, 70),
-        ),
-        Positioned(
-          bottom: 90,
-          left: 60,
-          child: _softIcon(Icons.casino_rounded, 80),
-        ),
-        Positioned(
-          bottom: 40,
-          right: 80,
-          child: _softIcon(Icons.emoji_events_rounded, 70),
-        ),
-      ],
+      ),
     );
   }
 
@@ -135,76 +115,99 @@ class _LobbyPageState extends State<LobbyPage> {
     final auth = Provider.of<AuthController>(context);
     final coins = auth.coins;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Texto "Lobby" + descripción
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Lobby',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Únete a una sala o crea una nueva\npara comenzar la partida.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white70,
-                    ),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF065A4B),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-        ),
-
-        // 💰 pill de monedas
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          margin: const EdgeInsets.only(right: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.monetization_on,
-                size: 18,
-                color: Colors.yellow,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '$coins',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Texto "Lobby" + descripción
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Lobby',
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 22,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  'Únete a una sala o crea una nueva\npara comenzar la partida.',
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 10,
+                    color: Colors.white70,
+                    height: 1.8,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
 
-        const SizedBox(width: 4),
+          // 💰 pill de monedas
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.monetization_on,
+                  size: 18,
+                  color: Colors.yellow,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$coins',
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-        // 🛒 botón tienda
-        IconButton(
-          tooltip: 'Tienda de skins',
-          icon: const Icon(Icons.storefront, color: Colors.white),
-          onPressed: () {
-            Navigator.pushNamed(context, '/shop');
-          },
-        ),
+          const SizedBox(width: 4),
 
-        const SizedBox(width: 8),
+          // 🛒 botón tienda
+          IconButton(
+            tooltip: 'Tienda de skins',
+            icon: const Icon(Icons.storefront, color: Colors.white),
+            onPressed: () {
+              Navigator.pushNamed(context, '/shop');
+            },
+          ),
 
-        // 👉 Solo dejamos el LogoutButton, que ya maneja avatar/nombre a su manera
-        const LogoutButton(),
-        const SizedBox(width: 4),
-      ],
+          const SizedBox(width: 8),
+
+          // 👉 Solo dejamos el LogoutButton, que ya maneja avatar/nombre a su manera
+          const LogoutButton(),
+          const SizedBox(width: 4),
+        ],
+      ),
     );
   }
 
@@ -223,11 +226,17 @@ class _LobbyPageState extends State<LobbyPage> {
             Expanded(
               child: TextField(
                 controller: _searchCtrl,
-                decoration: const InputDecoration(
+                style: GoogleFonts.pressStart2p(
+                  fontSize: 11,
+                  height: 1.5,
+                ),
+                decoration: InputDecoration(
                   border: InputBorder.none,
                   labelText: 'Buscar sala por ID',
                   hintText: 'Ingresa el ID de la sala',
-                  prefixIcon: Icon(Icons.search),
+                  labelStyle: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                  hintStyle: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                  prefixIcon: const Icon(Icons.search),
                 ),
               ),
             ),
@@ -280,13 +289,18 @@ class _LobbyPageState extends State<LobbyPage> {
                 }
               },
               style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF065A4B),
+                foregroundColor: Colors.white,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Buscar'),
+              child: Text(
+                'Buscar',
+                style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+              ),
             )
           ],
         ),
@@ -303,12 +317,16 @@ class _LobbyPageState extends State<LobbyPage> {
         color: Colors.white.withOpacity(0.95),
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: const Center(
+        child: Center(
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Text(
               'Aún no hay salas creadas.\nCrea la primera sala para empezar.',
               textAlign: TextAlign.center,
+              style: GoogleFonts.pressStart2p(
+                fontSize: 11,
+                height: 1.8,
+              ),
             ),
           ),
         ),
@@ -357,8 +375,7 @@ class _LobbyPageState extends State<LobbyPage> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.secondary,
+                      backgroundColor: const Color(0xFF065A4B),
                       child: Text(
                         initials,
                         style: const TextStyle(color: Colors.white),
@@ -374,9 +391,10 @@ class _LobbyPageState extends State<LobbyPage> {
                               Expanded(
                                 child: Text(
                                   r.name,
-                                  style: const TextStyle(
+                                  style: GoogleFonts.pressStart2p(
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 15,
+                                    fontSize: 11,
+                                    height: 1.5,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -394,9 +412,10 @@ class _LobbyPageState extends State<LobbyPage> {
                           const SizedBox(height: 2),
                           Text(
                             'Jugadores: $currentPlayers / $maxPlayers',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: GoogleFonts.pressStart2p(
+                              fontSize: 9,
                               color: Colors.grey[600],
+                              height: 1.5,
                             ),
                           ),
                         ],
@@ -427,11 +446,12 @@ class _LobbyPageState extends State<LobbyPage> {
                           const SizedBox(width: 4),
                           Text(
                             isFull ? 'Llena' : 'Disponible',
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: GoogleFonts.pressStart2p(
+                              fontSize: 9,
                               color: isFull
                                   ? Colors.red[800]
                                   : Colors.green[800],
+                              height: 1.5,
                             ),
                           ),
                         ],
@@ -455,15 +475,18 @@ class _LobbyPageState extends State<LobbyPage> {
       width: double.infinity,
       child: ElevatedButton.icon(
         icon: const Icon(Icons.add),
-        label: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
+        label: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
             'Crear sala',
-            style: TextStyle(fontSize: 16),
+            style: GoogleFonts.pressStart2p(
+              fontSize: 12,
+              height: 1.5,
+            ),
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF0DBA99),
+          backgroundColor: const Color(0xFF065A4B),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -494,20 +517,28 @@ class _LobbyPageState extends State<LobbyPage> {
             return AlertDialog(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18)),
-              title: const Text('Crear sala'),
+              title: Text(
+                'Crear sala',
+                style: GoogleFonts.pressStart2p(fontSize: 12, height: 1.5),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(
+                    style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                    decoration: InputDecoration(
                       labelText: 'Nombre de la sala',
+                      labelStyle: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text('Máximo de jugadores:'),
+                      Text(
+                        'Máximo de jugadores:',
+                        style: GoogleFonts.pressStart2p(fontSize: 9, height: 1.5),
+                      ),
                       const SizedBox(width: 12),
                       DropdownButton<int>(
                         value: maxPlayers,
@@ -515,7 +546,10 @@ class _LobbyPageState extends State<LobbyPage> {
                             .map(
                               (v) => DropdownMenuItem(
                                 value: v,
-                                child: Text('$v'),
+                                child: Text(
+                                  '$v',
+                                  style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                                ),
                               ),
                             )
                             .toList(),
@@ -531,7 +565,10 @@ class _LobbyPageState extends State<LobbyPage> {
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
-                    title: const Text('Sala privada'),
+                    title: Text(
+                      'Sala privada',
+                      style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                    ),
                     contentPadding: EdgeInsets.zero,
                     value: isPrivate,
                     onChanged: (val) {
@@ -543,8 +580,10 @@ class _LobbyPageState extends State<LobbyPage> {
                   if (isPrivate)
                     TextField(
                       controller: codeCtrl,
-                      decoration: const InputDecoration(
+                      style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                      decoration: InputDecoration(
                         labelText: 'Código de acceso',
+                        labelStyle: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
                       ),
                       obscureText: true,
                     ),
@@ -553,7 +592,10 @@ class _LobbyPageState extends State<LobbyPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancelar'),
+                  child: Text(
+                    'Cancelar',
+                    style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -593,7 +635,10 @@ class _LobbyPageState extends State<LobbyPage> {
                     if (!mounted) return;
                     Navigator.pushNamed(context, '/rooms/${room.id}');
                   },
-                  child: const Text('Crear'),
+                  child: Text(
+                    'Crear',
+                    style: GoogleFonts.pressStart2p(fontSize: 10, height: 1.5),
+                  ),
                 ),
               ],
             );

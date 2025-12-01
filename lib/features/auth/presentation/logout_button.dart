@@ -27,18 +27,27 @@ class LogoutButton extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF065A4B), // verde oscuro del tema
+                  color: Colors.white,
                 ),
               ),
             ),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: const Color(0xFF4A90E2),
-            child: Text(
-              initial,
-              style: const TextStyle(
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
+                width: 2,
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: const Color(0xFF065A4B),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -92,18 +101,27 @@ class LogoutButton extends StatelessWidget {
 
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: const Color(0xFF4A90E2),
-                        child: Text(
-                          username.isNotEmpty
-                              ? username[0].toUpperCase()
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF065A4B),
+                            width: 3,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: const Color(0xFF065A4B),
+                          child: Text(
+                            username.isNotEmpty
+                                ? username[0].toUpperCase()
                               : "?",
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
                         ),
                       ),
                       const SizedBox(width: 16),
