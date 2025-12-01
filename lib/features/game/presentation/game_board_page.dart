@@ -1,5 +1,5 @@
 // -------------------------------------------------------------
-// GameBoardPage.dart  (VERSIÓN LIMPIA + EMOTES + COINS AL GANAR + SURRENDER)
+// GameBoardPage.dart  (VERSIÓN LIMPIA + EMOTES)
 // -------------------------------------------------------------
 
 import 'dart:developer' as developer;
@@ -29,9 +29,6 @@ class _GameBoardPageState extends State<GameBoardPage>
     with TickerProviderStateMixin {
   static const Color _baseGreen = Color(0xFF065A4B);
 
-  // 👇 Ajusta este valor al premio de coins que maneje tu backend
-  static const int _coinsRewardOnWin = 20;
-
   // Animación del dado (zoom)
   late final AnimationController _diceController =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
@@ -49,7 +46,6 @@ class _GameBoardPageState extends State<GameBoardPage>
   // Overlay (matón / profesor especial)
   bool _showSpecialOverlay = false;
   String? _specialMessage;
-  String? _lastMatonEventKey; // Para evitar mostrar el mismo evento de matón varias veces
 
   // Aggressive reload
   bool _waitingForPlayers = false;
@@ -66,9 +62,6 @@ class _GameBoardPageState extends State<GameBoardPage>
 
   // Tracking para mensaje de victoria
   String? _lastGameStatus;
-
-  // Tracking para no repetir el mismo mensaje de surrender
-  String? _lastShownSurrenderMessage;
 
   @override
   void initState() {
@@ -684,6 +677,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                                       _buildEmoteButton(ctrl, 9),
                                       _buildEmoteButton(ctrl, 10),
                                       _buildEmoteButton(ctrl, 11),
+                                      // Agregar más botones GIF aquí: _buildEmoteButton(ctrl, 12), etc.
                                     ],
                                   ),
                                 ],
@@ -774,7 +768,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                               verticalDirection: VerticalDirection.up,
                               children: ctrl.emotes.map((e) {
                                 final isGif = _isGifEmote(e.emoteCode);
-
+                                
                                 if (isGif) {
                                   final gifUrl = _emoteGifUrl(e.emoteCode);
                                   if (gifUrl != null) {
@@ -792,7 +786,7 @@ class _GameBoardPageState extends State<GameBoardPage>
                                     );
                                   }
                                 }
-
+                                
                                 // Emoji Unicode normal
                                 final emoji = _emoteEmoji(e.emoteCode);
                                 return Container(
@@ -865,34 +859,17 @@ class _GameBoardPageState extends State<GameBoardPage>
                         // -------------------------
                         if (_showSpecialOverlay && _specialMessage != null)
                           Positioned.fill(
-                            child: Stack(
-                              children: [
-                                // Imagen de Jesús a la izquierda
-                                Positioned(
-                                  left: 350,
-                                  top: 0,
-                                  bottom: 0,
-                                  child: Center(
-                                    child: Image.asset(
-                                      'assets/jesus.png',
-                                      width: 150,
-                                      height: 150,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const SizedBox.shrink();
-                                      },
-                                    ),
-                                  ),
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.black87.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(18),
                                 ),
-                                // Mensaje en el centro
-                                Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(20),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black87.withOpacity(0.9),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: Text(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
                                       _specialMessage!,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
@@ -900,9 +877,9 @@ class _GameBoardPageState extends State<GameBoardPage>
                                         fontSize: 18,
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                       ],
@@ -967,31 +944,14 @@ class _GameBoardPageState extends State<GameBoardPage>
     final ctrl = Provider.of<GameController>(context, listen: false);
     final game = ctrl.game;
 
-    // --- Mensaje de rendición que viene DIRECTO del GameController (SignalR) ---
-    if (ctrl.lastSurrenderMessage != null &&
-        ctrl.lastSurrenderMessage!.isNotEmpty &&
-        ctrl.lastSurrenderMessage != _lastShownSurrenderMessage) {
-      _lastShownSurrenderMessage = ctrl.lastSurrenderMessage;
-      if (!ctrl.lastSurrenderWasMe && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(ctrl.lastSurrenderMessage!),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-
+    // --- Detectar rendición por diferencia en la lista de jugadores ---
     if (game != null) {
       final currentIds = game.players
           .map((p) => p.id?.toString())
           .whereType<String>()
           .toList();
 
-      // --- Fallback: detectar rendición por diferencia en la lista de jugadores ---
-      // Solo usar si NO vino mensaje de surrender del hub
-      if (ctrl.lastSurrenderMessage == null &&
-          _lastPlayerIds.isNotEmpty &&
+      if (_lastPlayerIds.isNotEmpty &&
           currentIds.length < _lastPlayerIds.length) {
         // Alguien salió
         final removed = _lastPlayerIds
@@ -1055,55 +1015,43 @@ class _GameBoardPageState extends State<GameBoardPage>
       _lastPlayerNames = {};
     }
 
-    // --- Evento especial Matón (con delay para que aparezca después de la animación) ---
+    // --- Evento especial Matón (cuando llegue en lastMoveResult) ---
     final mr = ctrl.lastMoveResult;
-    if (mr != null && mr.specialEvent == "Matón") {
-      // Crear una clave única para este evento
-      final eventKey = "${ctrl.lastMovePlayerId}_${mr.finalPosition}_${mr.diceValue}";
-      
-      // Solo mostrar si no lo hemos mostrado ya
-      if (eventKey != _lastMatonEventKey && !_showSpecialOverlay) {
-        _lastMatonEventKey = eventKey;
-        
-        // *** IMPORTANTE: Capturar el USERNAME AHORA, antes del delay ***
+    if (mr == null) return;
+
+    try {
+      if (mr.specialEvent == "Matón" && !_showSpecialOverlay) {
+        final auth = Provider.of<AuthController>(context, listen: false);
+        final myUserId = auth.userId;
+        final isMyMove =
+            (ctrl.lastMovePlayerId?.toString() == myUserId);
+
         String message = "Un jugador ha sido ayudado por un matón!";
         if (ctrl.game != null && ctrl.lastMovePlayerId != null) {
-          final playerId = ctrl.lastMovePlayerId.toString();
-          
-          // Buscar en la lista de jugadores AHORA
-          for (final player in ctrl.game!.players) {
-            if (player.id.toString() == playerId) {
+          try {
+            final player = ctrl.game!.players.firstWhere(
+              (p) => p.id?.toString() == ctrl.lastMovePlayerId.toString(),
+            );
+            if (isMyMove) {
+              message =
+                  "Te han ayudado, subes hasta la casilla ${mr.finalPosition}";
+            } else {
               message = "${player.username} ha sido ayudado por un matón!";
-              developer.log('Matón: Username capturado = ${player.username}', name: 'GameBoardPage');
-              break;
             }
-          }
+          } catch (_) {}
         }
-        
-        // Calcular delay: tiempo del dado + tiempo de animación del tablero
-        final diceValue = mr.diceValue ?? mr.dice ?? 1;
-        final diceTime = 3200; // Tiempo total de animación del dado
-        final boardAnimationTime = (diceValue * 250) + 300;
-        final totalDelay = diceTime + boardAnimationTime;
-        
-        // Esperar a que termine la animación antes de mostrar el mensaje
-        // PERO el mensaje ya tiene el username correcto capturado arriba
-        Future.delayed(Duration(milliseconds: totalDelay), () {
-          if (!mounted) return;
 
-          setState(() {
-            _specialMessage = message;
-            _showSpecialOverlay = true;
-          });
-          
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() => _showSpecialOverlay = false);
-            }
-          });
+        setState(() {
+          _specialMessage = message;
+          _showSpecialOverlay = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() => _showSpecialOverlay = false);
+          }
         });
       }
-    }
+    } catch (_) {}
   }
 
   // -------------------------------------------------------------
@@ -1207,33 +1155,23 @@ class _GameBoardPageState extends State<GameBoardPage>
       return;
     }
 
-    // 7) Si el jugador ganó, incrementar victorias **y monedas**
+    // 7) Si el jugador ganó, incrementar victorias
     if (playerWon) {
       final auth = Provider.of<AuthController>(context, listen: false);
       try {
-        // 🏆 victorias (ya lo tenías)
         await auth.incrementWins();
         final userService = UserService();
         await userService.incrementWins();
-
-        // 🪙 monedas (solo front, el backend ya las suma en BD)
-        final newCoins = auth.coins + _coinsRewardOnWin;
-        await auth.setCoins(newCoins);
       } catch (e) {
-        developer.log(
-          'Error incrementando victorias/monedas: $e',
-          name: 'GameBoardPage',
-        );
+        developer.log('Error incrementando victorias: $e', name: 'GameBoardPage');
       }
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "🎉 ¡Felicidades! Has ganado la partida 🏆 +$_coinsRewardOnWin monedas",
-            ),
-            duration: const Duration(seconds: 5),
-            backgroundColor: const Color(0xFF0DBA99),
+          const SnackBar(
+            content: Text("🎉 ¡Felicidades! Has ganado la partida 🏆"),
+            duration: Duration(seconds: 5),
+            backgroundColor: Color(0xFF0DBA99),
           ),
         );
       }
@@ -1369,6 +1307,7 @@ class _GameBoardPageState extends State<GameBoardPage>
         return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3g4eW9nMXR6MWsxMTE1d3JleDR0anVkMmxkajFsNnJwMjFkcjJweCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WobKKxW5i4M6hS8PxD/giphy.gif";
       case 11:
         return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExODZ1NHFqdDgzNnZkc3Fta3gwOHNhbW92MDh0MW10eG5qZ2k1M2V1eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/gQgCdTVivhNAzPPmGb/giphy.gif";
+      // Agregar más GIFs aquí con códigos 12, 13, etc.
       default:
         return null;
     }

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../state/auth_controller.dart';
 
@@ -110,45 +111,14 @@ class _RegisterPageState extends State<RegisterPage>
                               auth: auth,
                               baseGreen: baseGreen,
                             );
-                            final profPanel = _buildProfesorPanel(baseGreen);
 
-                            return isNarrow
-                                ? Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const SizedBox(height: 16),
-                                      SizedBox(height: 200, child: profPanel),
-                                      const Divider(height: 1),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                          vertical: 18,
-                                        ),
-                                        child: form,
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 22,
-                                            vertical: 24,
-                                          ),
-                                          child: form,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: SizedBox(
-                                          height: 260,
-                                          child: profPanel,
-                                        ),
-                                      ),
-                                    ],
-                                  );
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 24,
+                              ),
+                              child: form,
+                            );
                           },
                         ),
                       ),
@@ -170,44 +140,27 @@ class _RegisterPageState extends State<RegisterPage>
   Widget _buildAnimatedBackground() {
     return Stack(
       children: [
+        // Imagen de fondo
         Positioned.fill(
-          child: CustomPaint(
-            painter: _ParticlesPainter(
-              particles: _particles,
-              animation: _bgController,
-            ),
+          child: Image.asset(
+            'assets/fondo.png',
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // Fallback al fondo animado original si no encuentra la imagen
+              return CustomPaint(
+                painter: _ParticlesPainter(
+                  particles: _particles,
+                  animation: _bgController,
+                ),
+              );
+            },
           ),
         ),
-        // Íconos suaves con temática de juego / universidad
-        Positioned(
-          top: 70,
-          left: 40,
-          child: _softIcon(Icons.school_rounded, 80),
-        ),
-        Positioned(
-          top: 170,
-          left: 140,
-          child: _softIcon(Icons.groups_rounded, 70),
-        ),
-        Positioned(
-          bottom: 150,
-          right: 70,
-          child: _softIcon(Icons.emoji_events_rounded, 70),
-        ),
-        Positioned(
-          bottom: 70,
-          left: 110,
-          child: _softIcon(Icons.casino_rounded, 85),
-        ),
-        Positioned(
-          top: 260,
-          right: 90,
-          child: _softIcon(Icons.sentiment_very_dissatisfied_rounded, 75),
-        ),
-        Positioned(
-          top: 120,
-          right: 40,
-          child: _softIcon(Icons.menu_book_rounded, 60),
+        // Overlay oscuro para que el texto se vea mejor
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(0.3),
+          ),
         ),
       ],
     );
@@ -244,7 +197,13 @@ class _RegisterPageState extends State<RegisterPage>
               Navigator.pushReplacementNamed(context, '/login');
             },
             icon: const Icon(Icons.arrow_back, size: 18),
-            label: const Text('Volver al login'),
+            label: Text(
+              'Volver al login',
+              style: GoogleFonts.pressStart2p(
+                fontSize: 8,
+                height: 1.5,
+              ),
+            ),
             style: TextButton.styleFrom(
               foregroundColor: baseGreen,
             ),
@@ -254,18 +213,20 @@ class _RegisterPageState extends State<RegisterPage>
 
         Text(
           'Crear cuenta',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 18,
             color: baseGreen,
+            letterSpacing: 1,
+            height: 1.5,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Regístrate para unirte a las partidas.',
-          style: TextStyle(
-            fontSize: 13,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 9,
             color: Colors.black54,
+            height: 1.8,
           ),
         ),
         const SizedBox(height: 18),
@@ -504,10 +465,19 @@ class _RegisterPageState extends State<RegisterPage>
     return TextField(
       controller: controller,
       obscureText: obscure,
+      style: GoogleFonts.pressStart2p(
+        fontSize: 10,
+        color: Colors.black87,
+        height: 1.5,
+      ),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: const Color(0xFF065A4B)),
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.black54),
+        labelStyle: GoogleFonts.pressStart2p(
+          fontSize: 10,
+          color: Colors.black54,
+          height: 1.5,
+        ),
         filled: true,
         fillColor: Colors.grey.shade100,
         focusedBorder: OutlineInputBorder(
@@ -547,11 +517,11 @@ class _RegisterPageState extends State<RegisterPage>
         child: Center(
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+            style: GoogleFonts.pressStart2p(
+              fontSize: 11,
               color: Colors.white,
               letterSpacing: 0.5,
+              height: 1.5,
             ),
           ),
         ),

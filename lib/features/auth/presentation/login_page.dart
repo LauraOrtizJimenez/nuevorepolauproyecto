@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../state/auth_controller.dart';
 
@@ -122,45 +123,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               auth: auth,
                               baseGreen: baseGreen,
                             );
-                            final profPanel = _buildProfesorPanel(baseGreen);
 
-                            return isNarrow
-                                ? Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const SizedBox(height: 16),
-                                      SizedBox(height: 220, child: profPanel),
-                                      const Divider(height: 1),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                          vertical: 18,
-                                        ),
-                                        child: form,
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 22,
-                                            vertical: 24,
-                                          ),
-                                          child: form,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: SizedBox(
-                                          height: 280,
-                                          child: profPanel,
-                                        ),
-                                      ),
-                                    ],
-                                  );
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 24,
+                              ),
+                              child: form,
+                            );
                           },
                         ),
                       ),
@@ -180,121 +150,36 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   // ────────────────────────────────────────────────
 
   Widget _buildAnimatedBackground() {
-    return AnimatedBuilder(
-      animation: _bgController,
-      builder: (context, child) {
-        final t = _bgController.value;
-        // wobble rápido
-        final wobble = sin(t * 2 * pi * 3) * 0.08;
-
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _ParticlesPainter(
-                  particles: _particles,
-                  animation: _bgController,
-                ),
-              ),
-            ),
-
-            // Íconos grandes de fondo, todos con un poco de wobble
-            Positioned(
-              top: 70,
-              left: 40,
-              child: Transform.rotate(
-                angle: wobble,
-                child: _softIcon(Icons.school_rounded, 80),
-              ),
-            ),
-            Positioned(
-              top: 170,
-              left: 140,
-              child: Transform.rotate(
-                angle: -wobble * 0.9,
-                child: _softIcon(Icons.groups_rounded, 70),
-              ),
-            ),
-            Positioned(
-              bottom: 150,
-              right: 70,
-              child: Transform.rotate(
-                angle: wobble * 0.7,
-                child: _softIcon(Icons.emoji_events_rounded, 70),
-              ),
-            ),
-            Positioned(
-              bottom: 70,
-              left: 110,
-              child: Transform.rotate(
-                angle: -wobble,
-                child: _softIcon(Icons.casino_rounded, 85),
-              ),
-            ),
-            Positioned(
-              top: 260,
-              right: 90,
-              child: Transform.rotate(
-                angle: wobble * 0.5,
-                child: _softIcon(
-                  Icons.sentiment_very_dissatisfied_rounded,
-                  75,
-                ),
-              ),
-            ),
-            Positioned(
-              top: 120,
-              right: 40,
-              child: Transform.rotate(
-                angle: -wobble * 0.4,
-                child: _softIcon(Icons.menu_book_rounded, 60),
-              ),
-            ),
-
-            // Extras gamer / quiz
-            Positioned(
-              bottom: 220,
-              left: 40,
-              child: Transform.rotate(
-                angle: wobble * 0.6,
-                child: _softIcon(Icons.flash_on_rounded, 55),
-              ),
-            ),
-            Positioned(
-              bottom: 200,
-              right: 150,
-              child: Transform.rotate(
-                angle: -wobble * 0.6,
-                child: _softIcon(Icons.sports_esports_rounded, 52),
-              ),
-            ),
-            Positioned(
-              top: 60,
-              right: 220,
-              child: Transform.rotate(
-                angle: wobble * 0.4,
-                child: _softIcon(Icons.leaderboard_rounded, 50),
-              ),
-            ),
-            Positioned(
-              bottom: 40,
-              right: 40,
-              child: Transform.rotate(
-                angle: -wobble * 0.5,
-                child: _softIcon(Icons.chat_bubble_rounded, 48),
-              ),
-            ),
-            Positioned(
-              top: 40,
-              left: 220,
-              child: Transform.rotate(
-                angle: wobble * 0.3,
-                child: _softIcon(Icons.star_rounded, 42),
-              ),
-            ),
-          ],
-        );
-      },
+    return Stack(
+      children: [
+        // Imagen de fondo
+        Positioned.fill(
+          child: Image.asset(
+            'assets/fondo.png',
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // Fallback al fondo animado original si no encuentra la imagen
+              return AnimatedBuilder(
+                animation: _bgController,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: _ParticlesPainter(
+                      particles: _particles,
+                      animation: _bgController,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        // Overlay oscuro para que el texto se vea mejor
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(0.3),
+          ),
+        ),
+      ],
     );
   }
 
@@ -338,21 +223,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
         Text(
           'Profesores y Matones',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 20,
             color: baseGreen,
-            letterSpacing: 0.3,
+            letterSpacing: 1,
+            height: 1.5,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Inicia sesión y reta a tus amigos.\n'
           'Responde bien, esquiva a los profes y gana monedas. 🪙',
-          style: TextStyle(
-            fontSize: 13,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 9,
             color: Colors.black54,
-            height: 1.3,
+            height: 1.8,
           ),
         ),
         const SizedBox(height: 18),
@@ -376,9 +261,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           alignment: Alignment.centerRight,
           child: Text(
             '🎮 Tip: usa el mismo usuario que en el juego',
-            style: TextStyle(
-              fontSize: 11,
+            style: GoogleFonts.pressStart2p(
+              fontSize: 7,
               color: Colors.grey.shade600,
+              height: 1.8,
             ),
           ),
         ),
@@ -437,17 +323,22 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
+            Text(
               '¿No tienes cuenta?',
-              style: TextStyle(color: Colors.black54),
+              style: GoogleFonts.pressStart2p(
+                fontSize: 8,
+                color: Colors.black54,
+                height: 1.5,
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pushNamed(context, '/register'),
               child: Text(
                 'Crear cuenta',
-                style: TextStyle(
+                style: GoogleFonts.pressStart2p(
+                  fontSize: 8,
                   color: baseGreen,
-                  fontWeight: FontWeight.bold,
+                  height: 1.5,
                 ),
               ),
             )
@@ -657,10 +548,19 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      style: GoogleFonts.pressStart2p(
+        fontSize: 10,
+        color: Colors.black87,
+        height: 1.5,
+      ),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: const Color(0xFF065A4B)),
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.black54),
+        labelStyle: GoogleFonts.pressStart2p(
+          fontSize: 10,
+          color: Colors.black54,
+          height: 1.5,
+        ),
         filled: true,
         fillColor: Colors.grey.shade100,
         focusedBorder: OutlineInputBorder(
@@ -700,11 +600,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         child: Center(
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+            style: GoogleFonts.pressStart2p(
+              fontSize: 11,
               color: Colors.white,
               letterSpacing: 0.5,
+              height: 1.5,
             ),
           ),
         ),
