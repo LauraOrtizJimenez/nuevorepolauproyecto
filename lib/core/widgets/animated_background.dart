@@ -246,3 +246,4 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
     );
   }
 }
+//
